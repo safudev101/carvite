@@ -10,7 +10,6 @@ export interface ProcessOptions {
     outputFormat?: 'WEBP' | 'JPEG' | 'PNG';
     quality?: number;
     addShadow?: boolean;
-    addReflection?: boolean;
     carScale?: number;
 }
 
@@ -25,7 +24,7 @@ async function buildFormData(imageUri: string, fileName: string, opts: ProcessOp
         form.append('image', {
             uri: imageUri,
             name: fileName,
-            type: 'image/jpeg', // Standard type
+            type: 'image/jpeg', 
         } as any);
     }
 
@@ -35,7 +34,6 @@ async function buildFormData(imageUri: string, fileName: string, opts: ProcessOp
     form.append('output_format', opts.outputFormat ?? 'WEBP');
     form.append('quality', String(opts.quality ?? 88));
     form.append('add_shadow', String(opts.addShadow ?? true));
-    form.append('add_reflection', String(opts.addReflection ?? true));
     form.append('car_scale', String(opts.carScale ?? 0.82));
 
     return form;
@@ -44,41 +42,65 @@ async function buildFormData(imageUri: string, fileName: string, opts: ProcessOp
 export async function processSingleImage(
     imageUri: string,
     fileName: string,
-    opts: ProcessOptions = {},
-    onProgress?: (pct: number) => void
+    opts: ProcessOptions = {}
 ): Promise<string> {
-    if (!API_BASE) throw new Error("AI API URL is not configured.");
+    console.log("[AI] Processing image:", fileName);
+    
+    if (!API_BASE) {
+        console.error("[AI] API URL is missing! Check .env file.");
+        throw new Error("AI API URL missing.");
+    }
 
-    onProgress?.(10);
     const form = await buildFormData(imageUri, fileName, opts);
     
     try {
         const res = await fetch(`${API_BASE}/process`, {
             method: 'POST',
             body: form,
+            // Timeout add karne se loop break nahi hoga agar HF slow ho
+            signal: AbortSignal.timeout(60000) // 60 seconds
         });
 
         if (!res.ok) {
-            const errorData = await res.text();
-            throw new Error(`Backend Error: ${errorData}`);
+            const errorText = await res.text();
+            console.error(`[AI] Backend Error (${res.status}):`, errorText);
+            throw new Error(`AI Backend returned ${res.status}: ${errorText}`);
         }
 
-        onProgress?.(70);
+        // Response check: Hamein file milni chahiye
+        const blob = await res.blob();
+        if (blob.size === 0) throw new Error("AI Backend returned an empty file.");
+
+        console.log(`[AI] Success! Received processed image (${blob.size} bytes)`);
 
         if (Platform.OS === 'web') {
-            const blob = await res.blob();
             return URL.createObjectURL(blob);
         } else {
+            // Mobile storage logic
             const timestamp = Date.now();
             const localPath = `${FileSystem.cacheDirectory}processed_${timestamp}.webp`;
-            
-            // Result ko seedha file mein save karna
-            const downloadRes = await FileSystem.downloadAsync(res.url, localPath);
-            onProgress?.(100);
-            return downloadRes.uri;
+            const base64 = await blobToBase64(blob); // Helper below
+            await FileSystem.writeAsStringAsync(localPath, base64, { encoding: FileSystem.EncodingType.Base64 });
+            return localPath;
         }
     } catch (error: any) {
-        console.error("[aiProcessing] Error:", error);
-        throw error;
+        if (error.name === 'TimeoutError') {
+            console.error("[AI] API Timeout - Hugging Face might be waking up.");
+        }
+        console.error("[AI] Critical Error:", error.message);
+        throw error; // Store will catch this and mark FAILED
     }
+}
+
+// Helper to handle base64 on mobile
+function blobToBase64(blob: Blob): Promise<string> {
+    return new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onloadend = () => {
+            const base64String = reader.result as string;
+            resolve(base64String.split(',')[1]); // Remove data:image/*;base64,
+        };
+        reader.onerror = reject;
+        reader.readAsDataURL(blob);
+    });
 }
