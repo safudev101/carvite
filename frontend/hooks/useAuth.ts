@@ -6,32 +6,41 @@ export function useAuth() {
     return useAuthStore();
 }
 
+/**
+ * Routes protection logic to prevent login loops and unauthorized access.
+ */
 export function useProtectedRoutes() {
     const { user, isInitialized } = useAuthStore();
     const segments = useSegments();
     const router = useRouter();
 
     useEffect(() => {
+        // 1. Agar auth initialize nahi hua toh koi move mat karo
         if (!isInitialized) return;
 
+        // Check current location
         const inAuthGroup = segments[0] === "(auth)";
-        const inAdminGroup = segments[0] === "(admin)";
-        const isRoot = segments.length === 0 || segments[0] === "index" || segments[0] === undefined;
+        const isLandingPage = segments.length === 0 || segments[0] === "index";
 
+        // CASE A: User logged in nahi hai
         if (!user) {
-            // Agar user logged in nahi hai aur auth ke bahar jane ki koshish kare
-            if (!inAuthGroup && !isRoot) {
+            // Agar wo dashboard ya kisi aur protected jagah jane ki koshish kare
+            if (!inAuthGroup && !isLandingPage) {
+                console.log("Redirecting to Login: No User found");
                 router.replace("/(auth)/login");
             }
-        } else {
-            // Agar user logged in hai aur login/signup ya landing page par ho
-            if (inAuthGroup || isRoot) {
-                router.replace("/(dashboard)");
-            } 
-            // Admin checks
-            else if (inAdminGroup && user?.role !== "admin") {
+        } 
+        
+        // CASE B: User logged in HAI
+        else {
+            // Agar user logged in hai aur login/signup screens par bhatak raha hai
+            if (inAuthGroup || isLandingPage) {
+                console.log("Redirecting to Dashboard: User is logged in");
                 router.replace("/(dashboard)");
             }
+            
+            // Note: Dashboard ke andar (Gallery/Settings) ab ye logic interrupt nahi karegi
         }
+
     }, [user, segments, isInitialized]);
 }
