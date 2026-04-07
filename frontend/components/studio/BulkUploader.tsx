@@ -1,253 +1,127 @@
-import React, { useRef } from 'react';
-import {
-    View,
-    Text,
-    TouchableOpacity,
-    Animated,
-    Platform,
-    ScrollView,
-    Alert,
-} from 'react-native';
-import * as ImagePicker from 'expo-image-picker';
+import React from 'react';
+import { View, Text, TouchableOpacity, ScrollView, Image, ActivityIndicator, Pressable } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { ImageCard } from '@/components/studio/ImageCard';
-import { useStudioStore } from '../../stores/studioStore';
-import { LocalImage } from '../../types';
+import * as ImagePicker from 'expo-image-picker';
+import { useStudioStore } from '@/stores/studioStore';
+import { useImageProcessor } from '@/hooks/useImageProcessor';
+import { BackgroundPicker } from './BackgroundPicker'; // categories wala picker
+import { ImageCard } from './ImageCard'; // categories standard categories card
 
-import {
-    validateImageFile,
-    compressImage,
-    downloadImage,
-    formatFileSize,
-    generateOutputFileName,
-} from "@/services/imageUtils";
+export const BulkUploader: React.FC = () => {
+    const { images, addImages, clearAllImages, selectedBackground } = useStudioStore();
+    const { processAllImages, isProcessing, processingProgress } = useImageProcessor();
 
-interface BulkUploaderProps {
-    onProcess: () => void;
-    isProcessing: boolean;
-}
-
-export const BulkUploader: React.FC<BulkUploaderProps> = ({
-    onProcess,
-    isProcessing,
-}) => {
-    const { images, addImages, removeImage, selectImage, selectedImageId } =
-        useStudioStore();
-
-    const dropScale = useRef(new Animated.Value(1)).current;
-
-    const animateDrop = () => {
-        Animated.sequence([
-            Animated.timing(dropScale, { toValue: 0.96, duration: 100, useNativeDriver: true }),
-            Animated.spring(dropScale, { toValue: 1, useNativeDriver: true }),
-        ]).start();
-    };
+    // Permissions logic
     const pickImages = async () => {
         const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
         if (status !== 'granted') {
-            Alert.alert(
-                'Permission Required',
-                'Please allow photo library access to upload car images.'
-            );
+            alert('Hamain gallery ka access chahiye images add karne ke liye.');
             return;
         }
 
-        const result = await ImagePicker.launchImageLibraryAsync({
+        let result = await ImagePicker.launchImageLibraryAsync({
             mediaTypes: ImagePicker.MediaTypeOptions.Images,
             allowsMultipleSelection: true,
-            quality: 0.95,
-            selectionLimit: 20,
+            selectionLimit: 10,
+            quality: 1,
         });
 
         if (!result.canceled) {
-            // --- YE WALA HISSA UPDATE KAREIN ---
-            const newImages: any[] = result.assets.map((asset) => ({
-                // id: nanoid(),
+            const newImages = result.assets.map((asset) => ({
+                id: `img_${Date.now()}_${Math.random()}`,
                 uri: asset.uri,
-                fileName: asset.fileName ?? `car_${Date.now()}_${Math.random().toString(36).slice(2, 7)}.jpg`,
-                fileSize: asset.fileSize ?? 0,
-                mimeType: asset.mimeType ?? 'image/jpeg',
-                status: 'idle', // Aapki types/index.ts ke mutabiq
+                fileName: asset.fileName || `car_${Date.now()}.jpg`,
+                fileSize: asset.fileSize || 0,
+                status: 'idle',
             }));
-
-            addImages(newImages as any);
-            animateDrop();
-            // -----------------------------------
+            addImages(newImages);
         }
     };
-    // const pickImages = async () => {
-    //     const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
-    //     if (status !== 'granted') {
-    //         Alert.alert(
-    //             'Permission Required',
-    //             'Please allow photo library access to upload car images.'
-    //         );
-    //         return;
-    //     }
 
-    //     const result = await ImagePicker.launchImageLibraryAsync({
-    //         mediaTypes: ImagePicker.MediaTypeOptions.Images,
-    //         allowsMultipleSelection: true,
-    //         quality: 0.95,
-    //         selectionLimit: 20,
-    //     });
-
-    //     if (!result.canceled) {
-    //         const newImages = result.assets.map((asset) => ({
-    //             uri: asset.uri,
-    //             fileName: asset.fileName ?? `car_${Date.now()}_${Math.random().toString(36).slice(2,7)}.jpg`,
-    //             fileSize: asset.fileSize ?? 0,
-    //             mimeType: asset.mimeType ?? 'image/jpeg',
-    //         }));
-    //         addImages(newImages);
-    //         animateDrop();
-    //     }
-    // };
-
-    const hasImages = images.length > 0;
-    const completedCount = images.filter((i) => i.status === 'done').length;
-    const readyCount = images.filter((i) => i.status === 'idle').length;
+    // FIX: logic standard agar koi image processing standard queue mein ho, ya error ho, tabhi button dikhao.
+    // Error state wali images ko dobara process karne ka option zaroori hai.
+    const hasPendingImages = images.some(img => img.status === 'idle' || img.status === 'queued' || img.status === 'error');
+    const allDone = images.length > 0 && images.every(img => img.status === 'done');
 
     return (
-        <View>
-            {/* Drop Zone */}
-            {!hasImages && (
-                <Animated.View style={{ transform: [{ scale: dropScale }] }}>
-                    <TouchableOpacity
-                        onPress={pickImages}
-                        activeOpacity={0.8}
-                        style={{
-                            borderWidth: 2,
-                            borderStyle: 'dashed',
-                            borderColor: 'rgba(201,168,76,0.4)',
-                            borderRadius: 18,
-                            backgroundColor: 'rgba(201,168,76,0.04)',
-                            paddingVertical: 52,
-                            alignItems: 'center',
-                            justifyContent: 'center',
-                            gap: 12,
-                        }}
-                    >
-                        <View
-                            style={{
-                                width: 64,
-                                height: 64,
-                                borderRadius: 32,
-                                backgroundColor: 'rgba(201,168,76,0.12)',
-                                alignItems: 'center',
-                                justifyContent: 'center',
-                            }}
-                        >
-                            <Ionicons name="cloud-upload-outline" size={30} color="#C9A84C" />
-                        </View>
-                        <View style={{ alignItems: 'center', gap: 4 }}>
-                            <Text style={{ color: '#E5E5E5', fontSize: 16, fontWeight: '700' }}>
-                                Upload Car Photos
-                            </Text>
-                            <Text style={{ color: '#6B7280', fontSize: 13 }}>
-                                Tap to select up to 20 images
-                            </Text>
-                            <Text style={{ color: '#4B5563', fontSize: 11, marginTop: 4 }}>
-                                JPG, PNG, HEIC — max 20MB each
-                            </Text>
-                        </View>
-                    </TouchableOpacity>
-                </Animated.View>
-            )}
+        <ScrollView style={{ flex: 1, padding: 16 }} contentContainerStyle={{ paddingBottom: 40 }}>
+            {/* Header section (Categories & Stats) */}
+            <View style={{ marginBottom: 20 }}>
+                <BackgroundPicker /> {/* Categories standard categories standard picker */}
+            </View>
 
-            {/* Toolbar when images exist */}
-            {hasImages && (
-                <View
-                    style={{
-                        flexDirection: 'row',
-                        alignItems: 'center',
-                        justifyContent: 'space-between',
-                        marginBottom: 14,
-                    }}
-                >
-                    <View style={{ gap: 2 }}>
-                        <Text style={{ color: '#E5E5E5', fontWeight: '700', fontSize: 15 }}>
-                            {images.length} photo{images.length !== 1 ? 's' : ''} queued
-                        </Text>
-                        {completedCount > 0 && (
-                            <Text style={{ color: '#22C55E', fontSize: 12 }}>
-                                ✓ {completedCount} enhanced
-                            </Text>
-                        )}
-                    </View>
-
-                    <View style={{ flexDirection: 'row', gap: 10 }}>
-                        {/* Add more */}
-                        <TouchableOpacity
-                            onPress={pickImages}
-                            style={{
-                                flexDirection: 'row',
-                                alignItems: 'center',
-                                gap: 5,
-                                paddingHorizontal: 14,
-                                paddingVertical: 8,
-                                borderRadius: 10,
-                                backgroundColor: 'rgba(255,255,255,0.07)',
-                                borderWidth: 1,
-                                borderColor: 'rgba(255,255,255,0.12)',
-                            }}
-                        >
-                            <Ionicons name="add" size={16} color="#9CA3AF" />
-                            <Text style={{ color: '#9CA3AF', fontSize: 13, fontWeight: '600' }}>
-                                Add
-                            </Text>
+            {/* Upload Queue Section */}
+            <View style={{ marginBottom: 20 }}>
+                <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
+                    <Text style={{ color: '#fff', fontSize: 16, fontWeight: '700' }}>
+                        UPLOAD QUEUE <Text style={{ color: '#999', fontSize: 12 }}>({images.length} photos)</Text>
+                    </Text>
+                    {images.length > 0 && !isProcessing && (
+                        <TouchableOpacity onPress={clearAllImages}>
+                            <Text style={{ color: '#C9A84C', fontSize: 13, fontWeight: '600' }}>Clear All</Text>
                         </TouchableOpacity>
+                    )}
+                </View>
 
-                        {/* Process button */}
-                        {readyCount > 0 && (
-                            <TouchableOpacity
-                                onPress={onProcess}
-                                disabled={isProcessing}
-                                style={{
-                                    flexDirection: 'row',
-                                    alignItems: 'center',
-                                    gap: 6,
-                                    paddingHorizontal: 18,
-                                    paddingVertical: 8,
-                                    borderRadius: 10,
-                                    backgroundColor: isProcessing ? '#5a4a20' : '#C9A84C',
-                                    opacity: isProcessing ? 0.7 : 1,
-                                }}
-                            >
-                                <Ionicons
-                                    name={isProcessing ? 'hourglass-outline' : 'flash'}
-                                    size={15}
-                                    color="#000"
-                                />
-                                <Text style={{ color: '#000', fontSize: 13, fontWeight: '700' }}>
-                                    {isProcessing ? 'Processing…' : `Enhance ${readyCount}`}
-                                </Text>
-                            </TouchableOpacity>
-                        )}
+                {/* Processing Overlay standard loading */}
+                {isProcessing && (
+                    <View style={{ backgroundColor: 'rgba(201, 168, 76, 0.1)', padding: 12, borderRadius: 10, marginBottom: 15, flexDirection: 'row', alignItems: 'center', gap: 10 }}>
+                        <ActivityIndicator color="#C9A84C" size="small" />
+                        <Text style={{ color: '#fff', fontSize: 13, flex: 1 }}>Processing car photos...</Text>
+                        <Text style={{ color: '#C9A84C', fontSize: 13, fontWeight: '700' }}>{processingProgress}%</Text>
                     </View>
+                )}
+
+                {/* Images Grid standard queue standard */}
+                <View style={{ gap: 12 }}>
+                    {images.map((img) => (
+                        <ImageCard key={img.id} image={img} /> // standard categories and cards logic
+                    ))}
+                    
+                    {/* Add Images Button standard categories */}
+                    {!isProcessing && images.length < 10 && (
+                        <TouchableOpacity onPress={pickImages} style={{ height: 60, borderRadius: 10, borderWidth: 1, borderColor: '#333', borderStyle: 'dashed', alignItems: 'center', justifyContent: 'center', backgroundColor: 'rgba(255,255,255,0.03)' }}>
+                            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                                <Ionicons name="add-circle-outline" size={18} color="#999" />
+                                <Text style={{ color: '#999', fontSize: 14 }}>Add Car Photos</Text>
+                            </View>
+                        </TouchableOpacity>
+                    )}
                 </View>
+            </View>
+
+            {/* Bottom Enhance Button (The main action) */}
+            {images.length > 0 && !isProcessing && (
+                <View style={{ marginTop: 20 }}>
+                    {hasPendingImages && (
+                        <TouchableOpacity 
+                            onPress={processAllImages}
+                            style={{ backgroundColor: '#C9A84C', height: 50, borderRadius: 12, alignItems: 'center', justifyContent: 'center', flexDirection: 'row', gap: 10 }}
+                        >
+                            <Ionicons name="sparkles-outline" size={20} color="#000" />
+                            <Text style={{ color: '#000', fontSize: 16, fontWeight: '700' }}>Enhance {images.filter(img => img.status === 'idle' || img.status === 'queued' || img.status === 'error').length} Photos</Text>
+                        </TouchableOpacity>
+                    )}
+                    
+                    {allDone && (
+                        <TouchableOpacity 
+                            style={{ backgroundColor: 'rgba(255,255,255,0.08)', height: 50, borderRadius: 12, alignItems: 'center', justifyContent: 'center', flexDirection: 'row', gap: 10 }}
+                        >
+                            <Ionicons name="download-outline" size={20} color="#fff" />
+                            <Text style={{ color: '#fff', fontSize: 16, fontWeight: '700' }}>Download All</Text>
+                        </TouchableOpacity>
+                    )}
+                </View>
+            )}
+            
+            {/* Show uploader if no images */}
+            {images.length === 0 && (
+                <TouchableOpacity onPress={pickImages} style={{ height: 200, borderRadius: 15, borderWidth: 1, borderColor: '#333', borderStyle: 'dashed', alignItems: 'center', justifyContent: 'center', backgroundColor: '#1A1A1A', marginTop: 20 }}>
+                    <Ionicons name="cloud-upload-outline" size={30} color="#666" />
+                    <Text style={{ color: '#999', fontSize: 15, marginTop: 10 }}>Tap to upload car photos</Text>
+                </TouchableOpacity>
             )}
 
-            {/* Image Grid */}
-            {hasImages && (
-                <View
-                    style={{
-                        flexDirection: 'row',
-                        flexWrap: 'wrap',
-                        gap: 12,
-                    }}
-                >
-                    {images.map((img) => (
-                        <ImageCard
-                            key={img.id}
-                            image={img}
-                            isSelected={selectedImageId === img.id}
-                            onSelect={() => selectImage(img.id)}
-                            onRemove={() => removeImage(img.id)}
-                        />
-                    ))}
-                </View>
-            )}
-        </View>
+        </ScrollView>
     );
 };
