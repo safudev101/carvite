@@ -1,0 +1,10 @@
+# Block everything heavy
+node_modules/
+frontend/node_modules/
+backend/venv/
+backend/__pycache__/
+.expo/
+dist/
+web-build/
+*.zip
+.env
