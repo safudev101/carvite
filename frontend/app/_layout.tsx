@@ -10,17 +10,17 @@ import { Colors } from "../constants/colors";
 import "../global.css";
 
 export default function RootLayout() {
-    const { initialize, isInitialized } = useAuthStore();
+    const { initialize } = useAuthStore();
     const { resolvedTheme } = useThemeStore();
 
     const isDark = resolvedTheme === "dark";
 
-    // Initialize auth state on app launch
+    // 1. Initialize auth state on app launch
     useEffect(() => {
-        initialize();
+        initialize().catch(err => console.error("Auth Init Error:", err));
     }, []);
 
-    // Set up route protection
+    // 2. Set up route protection (Isay humne useAuth.ts mein fix kiya hai)
     useProtectedRoutes();
 
     const bg = isDark ? Colors.carbon950 : Colors.light.background;
@@ -33,12 +33,13 @@ export default function RootLayout() {
                     screenOptions={{
                         headerShown: false,
                         contentStyle: { backgroundColor: bg },
-                        animation: "fade",
+                        animation: "fade", // Faster transition to avoid white flash
                     }}
                 >
+                    {/* Routes define karna zaroori hai taake navigation stack confuse na ho */}
                     <Stack.Screen name="index" />
-                    <Stack.Screen name="(auth)" />
-                    <Stack.Screen name="(dashboard)" />
+                    <Stack.Screen name="(auth)" options={{ gestureEnabled: false }} />
+                    <Stack.Screen name="(dashboard)" options={{ gestureEnabled: false }} />
                     <Stack.Screen name="(admin)" />
                 </Stack>
             </SafeAreaProvider>
