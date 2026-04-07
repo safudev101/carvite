@@ -6,41 +6,36 @@ export function useAuth() {
     return useAuthStore();
 }
 
-/**
- * Routes protection logic to prevent login loops and unauthorized access.
- */
 export function useProtectedRoutes() {
     const { user, isInitialized } = useAuthStore();
     const segments = useSegments();
     const router = useRouter();
 
     useEffect(() => {
-        // 1. Agar auth initialize nahi hua toh koi move mat karo
+        // Jab tak initialize na ho, kuch mat karo
         if (!isInitialized) return;
 
-        // Check current location
-        const inAuthGroup = segments[0] === "(auth)";
-        const isLandingPage = segments.length === 0 || segments[0] === "index";
+        // Path check karne ka sab se pakka tareeqa
+        const path = segments.join('/');
+        const inAuthGroup = path.includes('(auth)') || path.includes('login') || path.includes('signup');
+        
+        // Debugging ke liye (Optional: Browser console mein nazar aayega)
+        console.log("Current Path:", path, "User:", !!user);
 
-        // CASE A: User logged in nahi hai
         if (!user) {
-            // Agar wo dashboard ya kisi aur protected jagah jane ki koshish kare
-            if (!inAuthGroup && !isLandingPage) {
-                console.log("Redirecting to Login: No User found");
+            // Agar user nahi hai aur wo dashboard ke kisi bhi hisse mein hai
+            // Hum check karte hain ke agar path empty nahi hai aur auth mein nahi hai
+            if (!inAuthGroup && path !== "" && path !== "index") {
                 router.replace("/(auth)/login");
             }
-        } 
-        
-        // CASE B: User logged in HAI
-        else {
-            // Agar user logged in hai aur login/signup screens par bhatak raha hai
-            if (inAuthGroup || isLandingPage) {
-                console.log("Redirecting to Dashboard: User is logged in");
-                router.replace("/(dashboard)");
+        } else {
+            // Agar user AA GAYA hai aur wo login/auth pages par hai
+            if (inAuthGroup || path === "" || path === "index") {
+                // Thora sa wait taake state stable ho jaye
+                setTimeout(() => {
+                    router.replace("/(dashboard)");
+                }, 100);
             }
-            
-            // Note: Dashboard ke andar (Gallery/Settings) ab ye logic interrupt nahi karegi
         }
-
     }, [user, segments, isInitialized]);
 }
