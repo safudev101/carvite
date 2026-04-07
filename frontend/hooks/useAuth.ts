@@ -6,10 +6,6 @@ export function useAuth() {
     return useAuthStore();
 }
 
-/**
- * Protects routes based on auth state and user role.
- * Call this once in the root _layout.tsx.
- */
 export function useProtectedRoutes() {
     const { user, isInitialized } = useAuthStore();
     const segments = useSegments();
@@ -20,17 +16,22 @@ export function useProtectedRoutes() {
 
         const inAuthGroup = segments[0] === "(auth)";
         const inAdminGroup = segments[0] === "(admin)";
-        const inDashboardGroup = segments[0] === "(dashboard)";
+        const isRoot = segments.length === 0 || segments[0] === "index" || segments[0] === undefined;
 
-        if (!user && !inAuthGroup && segments[0] !== undefined) {
-            // Not logged in: redirect to landing or login
-            router.replace("/");
-        } else if (user && inAuthGroup) {
-            // Already logged in: skip auth screens
-            router.replace("/(dashboard)");
-        } else if (inAdminGroup && user?.role !== "admin") {
-            // Non-admins can't access admin panel
-            router.replace("/(dashboard)");
+        if (!user) {
+            // Agar user logged in nahi hai aur auth ke bahar jane ki koshish kare
+            if (!inAuthGroup && !isRoot) {
+                router.replace("/(auth)/login");
+            }
+        } else {
+            // Agar user logged in hai aur login/signup ya landing page par ho
+            if (inAuthGroup || isRoot) {
+                router.replace("/(dashboard)");
+            } 
+            // Admin checks
+            else if (inAdminGroup && user?.role !== "admin") {
+                router.replace("/(dashboard)");
+            }
         }
     }, [user, segments, isInitialized]);
 }
