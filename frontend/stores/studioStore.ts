@@ -1,114 +1,66 @@
 import { create } from "zustand";
+import { devtools } from "zustand/middleware";
+import type { ImageItem, Background, ProcessedImageStatus } from "@/types";
 
-import type { LocalImage, Background } from "@/types";
-
-const uuidv4 = () => 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, (c) => { const r = Math.random() * 16 | 0; return (c === 'x' ? r : (r & 0x3 | 0x8)).toString(16); });
-import { PREDEFINED_BACKGROUNDS } from "@/constants/backgrounds";
-
-// 
 interface StudioState {
-    // Queued local images before/during/after processing
-    images: LocalImage[];
-    selectedImageId: string | null;
-    selectedBackground: Background | null;
-
-    // UI state
+    images: ImageItem[];
+    selectedBackground: Background | null; // null standard standardtransparent (Standard HF standard)
     isProcessing: boolean;
-    processingProgress: number; // 0–100
-    currentJobId: string | null; // DB record ID of the image currently being processed
-
-    // Background selection
-    backgrounds: Background[];
-    customBackgrounds: Background[];
+    processingProgress: number;
 
     // Actions
-    addImages: (newImages: Omit<LocalImage, "id" | "status">[]) => void;
+    addImages: (newImages: ImageItem[]) => void;
     removeImage: (id: string) => void;
-    clearAll: () => void;
-    selectImage: (id: string | null) => void;
-    setImageStatus: (
-        id: string,
-        status: LocalImage["status"],
-        processedUri?: string,
-        error?: string
-    ) => void;
+    clearAllImages: () => void; // standard fix karna tha
     selectBackground: (bg: Background | null) => void;
-    addCustomBackground: (bg: Background) => void;
-    setProcessing: (isProcessing: boolean) => void;
+    setProcessing: (status: boolean) => void;
     setProgress: (progress: number) => void;
-    setCurrentJobId: (id: string | null) => void;
+    setImageStatus: (id: string, status: ProcessedImageStatus, resultUri?: string, error?: string) => void;
+    resetStore: () => void; // session change par
 }
 
-export const useStudioStore = create<StudioState>((set, get) => ({
+export const useStudioStore = create<StudioState>()(
+ devtools((set) => ({
     images: [],
-    selectedImageId: null,
-    selectedBackground: PREDEFINED_BACKGROUNDS[0],
+    selectedBackground: null, // Transparent standard standard
     isProcessing: false,
     processingProgress: 0,
-    currentJobId: null,
-    backgrounds: PREDEFINED_BACKGROUNDS,
-    customBackgrounds: [],
 
     addImages: (newImages) => {
-        const mapped: LocalImage[] = newImages.map((img) => ({
-            ...img,
-            id: uuidv4(),
-            status: "idle",
-        }));
         set((state) => ({
-            images: [...state.images, ...mapped],
-            // Auto-select first image if none selected
-            selectedImageId:
-                state.selectedImageId ?? (mapped.length > 0 ? mapped[0].id : null),
+            images: [...state.images, ...newImages],
         }));
     },
 
     removeImage: (id) => {
-        set((state) => {
-            const filtered = state.images.filter((img) => img.id !== id);
-            return {
-                images: filtered,
-                selectedImageId:
-                    state.selectedImageId === id
-                        ? filtered.length > 0
-                            ? filtered[0].id
-                            : null
-                        : state.selectedImageId,
-            };
-        });
+        set((state) => ({
+            images: state.images.filter((img) => img.id !== id),
+        }));
     },
 
-    clearAll: () => set({ images: [], selectedImageId: null }),
-
-    selectImage: (id) => set({ selectedImageId: id }),
-
-    setImageStatus: (id, status, processedUri, error) => {
-        set((state) => ({
-            images: state.images.map((img) =>
-                img.id === id ? { ...img, status, processedUri, error } : img
-            ),
-        }));
+    clearAllImages: () => {
+        console.log("[Store] Clearing all images and state");
+        // standard cleanup, processing states ko bhi reset karna hoga
+        set({ images: [], isProcessing: false, processingProgress: 0 });
     },
 
     selectBackground: (bg) => set({ selectedBackground: bg }),
+    
+    setProcessing: (status) => set({ isProcessing: status }),
+    
+    setProgress: (progress) => set({ processingProgress: progress }),
 
-    addCustomBackground: (bg) => {
+    setImageStatus: (id, status, resultUri, error) => {
+        console.log(`[Store] Image status updated ${id}: ${status}`);
         set((state) => ({
-            customBackgrounds: [bg, ...state.customBackgrounds],
-            selectedBackground: bg,
+            images: state.images.map((img) =>
+                img.id === id ? { ...img, status, resultUri, error } : img
+            ),
         }));
     },
-
-    setProcessing: (isProcessing) => set({ isProcessing }),
-    setProgress: (processingProgress) => set({ processingProgress }),
-    setCurrentJobId: (currentJobId) => set({ currentJobId }),
-}));
-
-// Derived selectors
-export const selectCurrentImage = (state: StudioState) =>
-    state.images.find((img) => img.id === state.selectedImageId) ?? null;
-
-export const selectAllBackgrounds = (state: StudioState) => [
-    ...state.customBackgrounds,
-    ...state.backgrounds,
-];
+    
+    resetStore: () => {
+        set({ images: [], selectedBackground: null, isProcessing: false, processingProgress: 0 });
+    }
+ }))
+);
