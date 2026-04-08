@@ -98,7 +98,7 @@ export default function Header({ transparent = false, showNav = true }: HeaderPr
             )}
 
             {/* Right actions */}
-            <View style={styles.actions, { gap: isMobile ? 8 : 12 }]}>
+            <View style={[styles.actions, { gap: isMobile ? 8 : 12 }]}>
                 {/* Theme toggle */}
                 <TouchableOpacity
                     style={[styles.iconBtn, { borderColor }, isMobile && { width: 32, height: 32 }]}
