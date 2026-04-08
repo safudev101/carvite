@@ -1,4 +1,4 @@
-import React, { useRef, useEffect } from "react";
+import React, { useRef, useEffect, useState } from "react";
 import {
     View,
     Text,
@@ -6,87 +6,68 @@ import {
     StyleSheet,
     Animated,
     Platform,
-    Dimensions, // Added missing import
+    Dimensions,
+    Modal,
 } from "react-native";
-import { useRouter, usePathname } from "expo-router";
+import { useRouter } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import { useTheme } from "../../hooks/useTheme";
 import { useAuthStore } from "../../stores/authStore";
 import { Colors } from "../../constants/colors";
 
-interface HeaderProps {
-    transparent?: boolean;
-    showNav?: boolean;
-}
-
 const { width: screenWidth } = Dimensions.get('window');
 const isMobile = screenWidth < 768;
 
-export default function Header({ transparent = false, showNav = true }: HeaderProps) {
+export default function Header({ transparent = false }: { transparent?: boolean }) {
     const { isDark, toggleTheme } = useTheme();
-    const { user, signOut } = useAuthStore();
+    const { user } = useAuthStore();
     const router = useRouter();
-    const pathname = usePathname();
+    
+    // Burger Menu State & Animation
+    const [menuOpen, setMenuOpen] = useState(false);
+    const menuAnim = useRef(new Animated.Value(screenWidth)).current; // Start off-screen (right)
 
-    const slideY = useRef(new Animated.Value(-60)).current;
-    const opacity = useRef(new Animated.Value(0)).current;
-
-    useEffect(() => {
-        Animated.parallel([
-            Animated.timing(slideY, { toValue: 0, duration: 500, delay: 100, useNativeDriver: true }),
-            Animated.timing(opacity, { toValue: 1, duration: 500, delay: 100, useNativeDriver: true }),
-        ]).start();
-    }, []);
-
-    const bg = transparent
-        ? "transparent"
-        : isDark
-            ? `${Colors.carbon900}EE`
-            : `${Colors.light.surface}EE`;
-
-    const borderColor = isDark ? Colors.carbon600 : Colors.light.border;
-    const textColor = isDark ? Colors.dark.text : Colors.light.text;
+    const toggleMenu = () => {
+        if (!menuOpen) {
+            setMenuOpen(true);
+            Animated.timing(menuAnim, {
+                toValue: 0,
+                duration: 300,
+                useNativeDriver: true,
+            }).start();
+        } else {
+            Animated.timing(menuAnim, {
+                toValue: screenWidth,
+                duration: 250,
+                useNativeDriver: true,
+            }).start(() => setMenuOpen(false));
+        }
+    };
 
     const navLinks = [
         { label: "Features", href: "/#features" },
-        { label: "How It Works", href: "/#how-it-works" },
         { label: "Pricing", href: "/#pricing" },
+        { label: "Showroom", href: "/showroom" },
     ];
 
+    const textColor = isDark ? Colors.dark.text : Colors.light.text;
+    const borderColor = isDark ? Colors.carbon600 : Colors.light.border;
+    const bg = transparent ? "transparent" : (isDark ? Colors.carbon900 : Colors.light.surface);
+
     return (
-        <Animated.View
-            style={[
-                styles.container,
-                {
-                    backgroundColor: bg,
-                    borderBottomColor: transparent ? "transparent" : borderColor,
-                    transform: [{ translateY: slideY }],
-                    opacity,
-                    paddingHorizontal: isMobile ? 12 : 24,
-                },
-            ]}
-        >
-            {/* Logo */}
-            <TouchableOpacity
-                style={styles.logo}
-                onPress={() => router.push("/")}
-                activeOpacity={0.8}
-            >
-                <View style={[styles.logoMark, isMobile && { width: 30, height: 30 }]}>
-                    <Text style={[styles.logoMarkText, isMobile && { fontSize: 11 }]}>AV</Text>
-                </View>
-                <View>
-                    <Text style={[styles.logoName, { color: textColor }, isMobile && { fontSize: 13 }]}>AutoVisio</Text>
-                    {!isMobile && <Text style={styles.logoTag}>STUDIO</Text>}
-                </View>
+        <View style={[styles.container, { backgroundColor: bg, borderBottomColor: borderColor }]}>
+            {/* Left: Logo */}
+            <TouchableOpacity style={styles.logo} onPress={() => router.push("/")}>
+                <View style={styles.logoMark}><Text style={styles.logoMarkText}>AV</Text></View>
+                {!isMobile && <Text style={[styles.logoName, { color: textColor }]}>AutoVisio</Text>}
             </TouchableOpacity>
 
-            {/* Nav Links (web only) */}
-            {showNav && Platform.OS === "web" && (
+            {/* Center: Desktop Nav Links */}
+            {!isMobile && (
                 <View style={styles.navLinks}>
                     {navLinks.map((link) => (
-                        <TouchableOpacity key={link.label} style={styles.navLink} activeOpacity={0.7}>
-                            <Text style={[styles.navLinkText, { color: isDark ? Colors.silver300 : Colors.silver500 }]}>
+                        <TouchableOpacity key={link.label} onPress={() => router.push(link.href as any)}>
+                            <Text style={[styles.navLinkText, { color: isDark ? Colors.silver300 : Colors.silver600 }]}>
                                 {link.label}
                             </Text>
                         </TouchableOpacity>
@@ -94,158 +75,92 @@ export default function Header({ transparent = false, showNav = true }: HeaderPr
                 </View>
             )}
 
-            {/* Right actions */}
-            <View style={[styles.actions, { gap: isMobile ? 8 : 12 }]}>
-                {/* Theme toggle */}
-                <TouchableOpacity
-                    style={[styles.iconBtn, { borderColor }, isMobile && { width: 32, height: 32 }]}
-                    onPress={toggleTheme}
-                    activeOpacity={0.7}
-                >
-                    <Ionicons
-                        name={isDark ? "sunny-outline" : "moon-outline"}
-                        size={isMobile ? 16 : 18}
-                        color={isDark ? Colors.silver300 : Colors.silver500}
-                    />
+            {/* Right: Actions (Theme + Button + Burger) */}
+            <View style={styles.actions}>
+                <TouchableOpacity onPress={toggleTheme} style={[styles.iconBtn, { borderColor }]}>
+                    <Ionicons name={isDark ? "sunny" : "moon"} size={18} color={isDark ? Colors.gold : Colors.silver500} />
                 </TouchableOpacity>
 
-                {user ? (
-                    <TouchableOpacity
-                        style={[styles.dashBtn, isMobile && { paddingHorizontal: 12, paddingVertical: 7 }]}
-                        onPress={() => router.push("/(dashboard)")}
-                        activeOpacity={0.8}
-                    >
-                        <Text style={styles.dashBtnText}>Dashboard</Text>
+                {!isMobile && (
+                    <TouchableOpacity style={styles.ctaBtn} onPress={() => router.push("/(auth)/signup")}>
+                        <Text style={styles.ctaBtnText}>Get Started</Text>
                     </TouchableOpacity>
-                ) : (
-                    <>
-                        {!isMobile && (
-                            <TouchableOpacity
-                                onPress={() => router.push("/(auth)/login")}
-                                style={styles.loginBtn}
-                                activeOpacity={0.7}
-                            >
-                                <Text style={[styles.loginBtnText, { color: isDark ? Colors.silver300 : Colors.silver500 }]}>
-                                    Sign In
-                                </Text>
-                            </TouchableOpacity> 
-                        )}
-                        <TouchableOpacity
-                            style={[styles.ctaBtn, isMobile && { paddingHorizontal: 12, paddingVertical: 7 }]}
-                            onPress={() => router.push("/(auth)/signup")}
-                            activeOpacity={0.8}
-                        >
-                            <Text style={[styles.ctaBtnText, isMobile && { fontSize: 12 }]}>
-                                {isMobile ? "Start" : "Get Started"}
-                            </Text>
-                        </TouchableOpacity>
-                    </>
+                )}
+
+                {isMobile && (
+                    <TouchableOpacity onPress={toggleMenu} style={styles.burgerBtn}>
+                        <Ionicons name="menu" size={28} color={textColor} />
+                    </TouchableOpacity>
                 )}
             </View>
-        </Animated.View>
+
+            {/* Mobile Burger Menu Overlay */}
+            {menuOpen && (
+                <Modal transparent visible={menuOpen} animationType="none">
+                    <View style={styles.modalOverlay}>
+                        <TouchableOpacity style={styles.closeArea} onPress={toggleMenu} />
+                        <Animated.View style={[styles.drawer, { transform: [{ translateX: menuAnim }], backgroundColor: isDark ? Colors.carbon800 : "#fff" }]}>
+                            <View style={styles.drawerHeader}>
+                                <Text style={[styles.drawerTitle, { color: textColor }]}>Menu</Text>
+                                <TouchableOpacity onPress={toggleMenu}>
+                                    <Ionicons name="close" size={30} color={textColor} />
+                                </TouchableOpacity>
+                            </View>
+                            
+                            <View style={styles.drawerContent}>
+                                {navLinks.map((link) => (
+                                    <TouchableOpacity 
+                                        key={link.label} 
+                                        style={styles.drawerLink} 
+                                        onPress={() => { toggleMenu(); router.push(link.href as any); }}
+                                    >
+                                        <Text style={[styles.drawerLinkText, { color: textColor }]}>{link.label}</Text>
+                                    </TouchableOpacity>
+                                ))}
+                                
+                                <TouchableOpacity 
+                                    style={[styles.ctaBtn, { marginTop: 20, width: '100%' }]} 
+                                    onPress={() => { toggleMenu(); router.push("/(auth)/signup"); }}
+                                >
+                                    <Text style={styles.ctaBtnText}>Get Started</Text>
+                                </TouchableOpacity>
+                            </View>
+                        </Animated.View>
+                    </View>
+                </Modal>
+            )}
+        </View>
     );
 }
 
 const styles = StyleSheet.create({
     container: {
-        width: '100%',
         flexDirection: "row",
         alignItems: "center",
         justifyContent: "space-between",
-        paddingVertical: 14,
-        borderBottomWidth: StyleSheet.hairlineWidth,
-        zIndex: 100,
-        ...(Platform.OS === "web" && {
-            backdropFilter: "blur(16px)",
-            WebkitBackdropFilter: "blur(16px)",
-        } as any),
+        paddingHorizontal: isMobile ? 16 : 40,
+        height: 70,
+        borderBottomWidth: 1,
+        zIndex: 1000,
     },
-    logo: {
-        flexDirection: "row",
-        alignItems: "center",
-        gap: 10,
-    },
-    logoMark: {
-        width: 36,
-        height: 36,
-        borderRadius: 8,
-        backgroundColor: Colors.gold,
-        alignItems: "center",
-        justifyContent: "center",
-    },
-    logoMarkText: {
-        color: Colors.carbon950,
-        fontSize: 13,
-        fontWeight: "800",
-        letterSpacing: 1,
-        fontFamily: Platform.select({ web: "Playfair Display", default: "serif" }),
-    },
-    logoName: {
-        fontSize: 15,
-        fontWeight: "700",
-        letterSpacing: 0.5,
-        fontFamily: Platform.select({ web: "DM Sans", default: "sans-serif" }),
-    },
-    logoTag: {
-        fontSize: 8,
-        letterSpacing: 4,
-        color: Colors.gold,
-        marginTop: -2,
-        fontFamily: Platform.select({ web: "DM Sans", default: "sans-serif" }),
-    },
-    navLinks: {
-        flexDirection: "row",
-        gap: 32,
-    },
-    navLink: {},
-    navLinkText: {
-        fontSize: 14,
-        fontWeight: "500",
-        letterSpacing: 0.3,
-        fontFamily: Platform.select({ web: "DM Sans", default: "sans-serif" }),
-    },
-    actions: {
-        flexDirection: "row",
-        alignItems: "center",
-    },
-    iconBtn: {
-        width: 36,
-        height: 36,
-        borderRadius: 8,
-        borderWidth: 1,
-        alignItems: "center",
-        justifyContent: "center",
-    },
-    loginBtn: { paddingHorizontal: 8 },
-    loginBtnText: {
-        fontSize: 14,
-        fontWeight: "500",
-        fontFamily: Platform.select({ web: "DM Sans", default: "sans-serif" }),
-    },
-    ctaBtn: {
-        paddingHorizontal: 18,
-        paddingVertical: 9,
-        borderRadius: 8,
-        backgroundColor: Colors.gold,
-    },
-    ctaBtnText: {
-        color: Colors.carbon950,
-        fontSize: 14,
-        fontWeight: "700",
-        letterSpacing: 0.3,
-        fontFamily: Platform.select({ web: "DM Sans", default: "sans-serif" }),
-    },
-    dashBtn: {
-        paddingHorizontal: 18,
-        paddingVertical: 9,
-        borderRadius: 8,
-        backgroundColor: Colors.gold,
-    },
-    dashBtnText: {
-        color: Colors.carbon950,
-        fontSize: 14,
-        fontWeight: "700",
-        letterSpacing: 0.3,
-        fontFamily: Platform.select({ web: "DM Sans", default: "sans-serif" }),
-    },
+    logo: { flexDirection: "row", alignItems: "center", gap: 10 },
+    logoMark: { width: 34, height: 34, backgroundColor: Colors.gold, borderRadius: 8, justifyContent: "center", alignItems: "center" },
+    logoMarkText: { fontWeight: "800", color: "#000" },
+    logoName: { fontSize: 18, fontWeight: "700" },
+    navLinks: { flexDirection: "row", gap: 25 },
+    navLinkText: { fontSize: 15, fontWeight: "500" },
+    actions: { flexDirection: "row", alignItems: "center", gap: 12 },
+    iconBtn: { width: 36, height: 36, borderRadius: 18, borderWidth: 1, justifyContent: "center", alignItems: "center" },
+    ctaBtn: { backgroundColor: Colors.gold, paddingHorizontal: 20, paddingVertical: 10, borderRadius: 8 },
+    ctaBtnText: { color: "#000", fontWeight: "700", textAlign: 'center' },
+    burgerBtn: { padding: 4 },
+    // Modal & Drawer Styles
+    modalOverlay: { flex: 1, backgroundColor: "rgba(0,0,0,0.5)", flexDirection: "row" },
+    closeArea: { flex: 1 },
+    drawer: { width: 280, height: "100%", padding: 25, elevation: 5 },
+    drawerHeader: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 40 },
+    drawerTitle: { fontSize: 20, fontWeight: "700" },
+    drawerContent: { gap: 20 },
+    drawerLink: { paddingVertical: 10, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: '#ccc' },
+    drawerLinkText: { fontSize: 18, fontWeight: "500" },
 });
