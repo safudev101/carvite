@@ -1,5 +1,5 @@
-import React from 'react';
-import { View, Text, TouchableOpacity, ScrollView, ActivityIndicator, Platform, StyleSheet } from 'react-native';
+import React, { useState } from 'react';
+import { View, Text, TouchableOpacity, ScrollView, Platform, StyleSheet, Image } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import * as ImagePicker from 'expo-image-picker';
 import * as MediaLibrary from 'expo-media-library';
@@ -11,6 +11,9 @@ import { ImageCard } from './ImageCard';
 export const BulkUploader: React.FC = () => {
     const { images, addImages, clearAllImages, isProcessing, processingProgress } = useStudioStore();
     const { processAllImages } = useImageProcessor();
+    
+    // --- Selection State for Car Images ---
+    const [selectedId, setSelectedId] = useState<string | null>(null);
 
     // --- 1. Image Picker Logic ---
     const pickImages = async () => {
@@ -43,8 +46,8 @@ export const BulkUploader: React.FC = () => {
         } else {
             const { status } = await MediaLibrary.requestPermissionsAsync();
             if (status === 'granted') {
-                const asset = await MediaLibrary.createAssetAsync(uri);
-                alert("Saved to Gallery!");
+                await MediaLibrary.createAssetAsync(uri);
+                alert("Saved to Gallery! ✨");
             }
         }
     };
@@ -53,7 +56,7 @@ export const BulkUploader: React.FC = () => {
 
     return (
         <View style={styles.container}>
-            {/* --- CUSTOM NAVIGATION (Carmera.eu Style) --- */}
+            {/* --- TOP NAVIGATION (Carmera Style) --- */}
             <View style={styles.navBar}>
                 <View style={styles.logoContainer}>
                     <View style={styles.logoIcon}><Text style={styles.logoText}>AV</Text></View>
@@ -65,17 +68,20 @@ export const BulkUploader: React.FC = () => {
                 </View>
             </View>
 
-            <ScrollView contentContainerStyle={styles.scrollContent}>
-                {/* --- BACKGROUND SELECTOR --- */}
+            <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
+                
+                {/* --- 1. STAGE SELECTION (Backgrounds) --- */}
                 <View style={styles.section}>
-                    <Text style={styles.sectionTitle}>SELECT STAGE</Text>
+                    <View style={styles.sectionHeader}>
+                        <Text style={styles.sectionTitle}>1. SELECT STAGE</Text>
+                    </View>
                     <BackgroundPicker />
                 </View>
 
-                {/* --- UPLOAD QUEUE --- */}
+                {/* --- 2. VEHICLE QUEUE (The Grid) --- */}
                 <View style={styles.section}>
                     <View style={styles.sectionHeader}>
-                        <Text style={styles.sectionTitle}>VEHICLE PHOTOS ({images.length})</Text>
+                        <Text style={styles.sectionTitle}>2. VEHICLE PHOTOS ({images.length})</Text>
                         {images.length > 0 && !isProcessing && (
                             <TouchableOpacity onPress={clearAllImages}>
                                 <Text style={styles.clearBtn}>Clear All</Text>
@@ -83,39 +89,57 @@ export const BulkUploader: React.FC = () => {
                         )}
                     </View>
 
-                    {/* --- PROGRESS BAR --- */}
+                    {/* AI Progress Bar */}
                     {isProcessing && (
                         <View style={styles.progressContainer}>
                             <View style={[styles.progressBar, { width: `${processingProgress}%` }]} />
-                            <Text style={styles.progressText}>Processing AI Magic... {processingProgress}%</Text>
+                            <Text style={styles.progressText}>AI is working... {processingProgress}%</Text>
                         </View>
                     )}
 
-                    {/* --- RESPONSIVE GRID --- */}
                     <View style={styles.grid}>
-                        {images.map((img) => (
-                            <View key={img.id} style={styles.cardWrapper}>
-                                <ImageCard 
-                                    image={img} 
-                                    onDownload={() => img.resultUri && handleDownload(img.resultUri)} 
-                                />
-                            </View>
-                        ))}
+                        {images.map((img) => {
+                            const isSelected = selectedId === img.id;
+                            return (
+                                <TouchableOpacity 
+                                    key={img.id} 
+                                    activeOpacity={0.9}
+                                    onPress={() => setSelectedId(img.id)}
+                                    style={[
+                                        styles.cardWrapper, 
+                                        isSelected && styles.cardSelected
+                                    ]}
+                                >
+                                    <ImageCard 
+                                        image={img} 
+                                        onDownload={() => img.resultUri && handleDownload(img.resultUri)} 
+                                    />
+                                    
+                                    {/* Selection Tick Overlay */}
+                                    {isSelected && (
+                                        <View style={styles.tickOverlay}>
+                                            <Ionicons name="checkmark-circle" size={24} color="#C9A84C" />
+                                        </View>
+                                    )}
+                                </TouchableOpacity>
+                            );
+                        })}
 
-                        {/* ADD BUTTON AS CARD */}
-                        {!isProcessing && images.length < 10 && (
+                        {/* Add Photo Button as a Card */}
+                        {!isProcessing && (
                             <TouchableOpacity onPress={pickImages} style={styles.addCard}>
-                                <Ionicons name="add" size={32} color="#C9A84C" />
+                                <Ionicons name="camera-outline" size={32} color="#333" />
                                 <Text style={styles.addText}>Add Photo</Text>
                             </TouchableOpacity>
                         )}
                     </View>
                 </View>
                 
-                <View style={{ height: 100 }} />
+                {/* Space for bottom button */}
+                <View style={{ height: 120 }} />
             </ScrollView>
 
-            {/* --- FLOATING ENHANCE BUTTON --- */}
+            {/* --- FLOATING ACTION BUTTON --- */}
             {pendingImages.length > 0 && !isProcessing && (
                 <View style={styles.footer}>
                     <TouchableOpacity onPress={processAllImages} style={styles.enhanceBtn}>
@@ -132,38 +156,76 @@ const styles = StyleSheet.create({
     container: { flex: 1, backgroundColor: '#000' },
     navBar: { 
         height: 70, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', 
-        paddingHorizontal: 20, borderBottomWidth: 1, borderBottomColor: '#1A1A1A', backgroundColor: '#000' 
+        paddingHorizontal: 20, borderBottomWidth: 1, borderBottomColor: '#1A1A1A', backgroundColor: '#000',
+        paddingTop: Platform.OS === 'ios' ? 20 : 0
     },
     logoContainer: { flexDirection: 'row', alignItems: 'center' },
     logoIcon: { width: 32, height: 32, backgroundColor: '#C9A84C', borderRadius: 8, justifyContent: 'center', alignItems: 'center', marginRight: 10 },
     logoText: { color: '#000', fontWeight: 'bold', fontSize: 16 },
-    brandName: { color: '#fff', fontSize: 18, fontWeight: '800', letterSpacing: -0.5 },
+    brandName: { color: '#fff', fontSize: 18, fontWeight: '800' },
     navIcons: { flexDirection: 'row', gap: 12 },
     iconBtn: { width: 40, height: 40, borderRadius: 20, backgroundColor: '#111', justifyContent: 'center', alignItems: 'center' },
-    scrollContent: { padding: 20 },
-    section: { marginBottom: 30 },
-    sectionHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 15 },
-    sectionTitle: { color: '#444', fontSize: 12, fontWeight: 'bold', letterSpacing: 1 },
+    
+    scrollContent: { padding: 15 },
+    section: { marginBottom: 25 },
+    sectionHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 },
+    sectionTitle: { color: '#666', fontSize: 11, fontWeight: '900', letterSpacing: 1.5, textTransform: 'uppercase' },
     clearBtn: { color: '#FF4444', fontSize: 12, fontWeight: '600' },
-    grid: { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'space-between' },
-    cardWrapper: { width: Platform.OS === 'web' ? '31%' : '48%', marginBottom: 15 },
-    addCard: { 
-        width: Platform.OS === 'web' ? '31%' : '48%', height: 150, backgroundColor: '#0A0A0A', 
-        borderRadius: 12, borderStyle: 'dashed', borderWidth: 1, borderColor: '#222', 
-        justifyContent: 'center', alignItems: 'center' 
+
+    // Grid Fix (Overlapping hatane ke liye)
+    grid: { 
+        flexDirection: 'row', 
+        flexWrap: 'wrap', 
+        justifyContent: 'flex-start', // Use flex-start and gap for better spacing
+        marginHorizontal: -5 
     },
-    addText: { color: '#444', fontSize: 12, marginTop: 8 },
-    progressContainer: { height: 40, backgroundColor: '#111', borderRadius: 8, marginBottom: 20, justifyContent: 'center', overflow: 'hidden' },
-    progressBar: { position: 'absolute', left: 0, top: 0, bottom: 0, backgroundColor: 'rgba(201, 168, 76, 0.2)' },
-    progressText: { textAlign: 'center', color: '#C9A84C', fontSize: 12, fontWeight: 'bold' },
+    cardWrapper: { 
+        width: Platform.OS === 'web' ? '23%' : '47%', // Web par 4 cards, Mobile par 2
+        margin: '1.5%',
+        aspectRatio: 4/3,
+        borderRadius: 15,
+        overflow: 'hidden',
+        borderWidth: 2,
+        borderColor: 'transparent',
+        backgroundColor: '#0A0A0A'
+    },
+    cardSelected: {
+        borderColor: '#C9A84C',
+    },
+    tickOverlay: {
+        position: 'absolute',
+        top: 8,
+        right: 8,
+        backgroundColor: 'rgba(0,0,0,0.6)',
+        borderRadius: 12,
+        padding: 2
+    },
+    addCard: { 
+        width: Platform.OS === 'web' ? '23%' : '47%',
+        margin: '1.5%',
+        aspectRatio: 4/3,
+        backgroundColor: '#0A0A0A', 
+        borderRadius: 15, 
+        borderStyle: 'dashed', 
+        borderWidth: 1.5, 
+        borderColor: '#222', 
+        justifyContent: 'center', 
+        alignItems: 'center' 
+    },
+    addText: { color: '#444', fontSize: 11, marginTop: 8, fontWeight: '600' },
+
+    // Progress Bar
+    progressContainer: { height: 35, backgroundColor: '#0A0A0A', borderRadius: 10, marginBottom: 20, justifyContent: 'center', overflow: 'hidden', borderWidth: 1, borderColor: '#1A1A1A' },
+    progressBar: { position: 'absolute', left: 0, top: 0, bottom: 0, backgroundColor: 'rgba(201, 168, 76, 0.15)' },
+    progressText: { textAlign: 'center', color: '#C9A84C', fontSize: 11, fontWeight: 'bold' },
+
     footer: { position: 'absolute', bottom: 30, left: 20, right: 20 },
     enhanceBtn: { 
-        backgroundColor: '#C9A84C', height: 55, borderRadius: 15, flexDirection: 'row', 
+        backgroundColor: '#C9A84C', height: 55, borderRadius: 18, flexDirection: 'row', 
         justifyContent: 'center', alignItems: 'center', shadowColor: '#C9A84C', shadowOpacity: 0.4, shadowRadius: 15, elevation: 8 
     },
-    enhanceBtnText: { color: '#000', fontWeight: 'bold', fontSize: 16 },
+    enhanceBtnText: { color: '#000', fontWeight: '900', fontSize: 15 },
 });
-
 
 
 // import React from 'react';
