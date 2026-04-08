@@ -223,7 +223,7 @@ export default function HeroSection() {
             {/* Stats bar */}
             <Animated.View
                 style={[
-                    styles.statsBar,
+                    styles.statsBar, isMobileUI && { flexWrap: 'wrap', justifyContent: 'center' }]}> // Ye zaroori hai
                     {
                         opacity: statsOpacity,
                         backgroundColor: isDark
