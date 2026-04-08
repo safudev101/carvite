@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from "react";
-import { ScrollView, View, StyleSheet, Platform } from "react-native";
+import { ScrollView, View, StyleSheet, Platform, Dimensions } from "react-native";
 import { useAuthStore } from "../stores/authStore";
 import { useTheme } from "../hooks/useTheme";
 import { Colors } from "../constants/colors";
@@ -10,6 +10,8 @@ import FeaturesSection from "@/components/landing/FeaturesSection";
 import HowItWorks from "@/components/landing/HowItWorks";
 import CTASection from "@/components/landing/CTASection";
 import LoadingScreen from "@/components/shared/LoadingScreen";
+
+const { width } = Dimensions.get('window');
 
 export default function LandingPage() {
     const { isInitialized } = useAuthStore();
@@ -39,11 +41,13 @@ export default function LandingPage() {
                 showsVerticalScrollIndicator={false}
                 stickyHeaderIndices={[]}
             >
+            <View style={styles.innerContainer}>
                 <HeroSection />
                 <FeaturesSection />
                 <HowItWorks />
                 <CTASection />
                 <Footer />
+                </View>
             </ScrollView>
         </View>
     );
@@ -58,5 +62,13 @@ const styles = StyleSheet.create({
     },
     scrollContent: {
         flexGrow: 1,
+        // Android par horizontal overflow rokne ke liye
+        width: '100%', 
     },
+    innerContainer: {
+        width: '100%',
+        // Web par bohot zyada wide na ho jaye
+        maxWidth: Platform.OS === 'web' ? 1400 : '100%', 
+        alignSelf: 'center', // Center mein rakhega content ko
+    }
 });
