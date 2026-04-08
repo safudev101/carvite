@@ -29,8 +29,8 @@ export default function Footer() {
 
     return (
         <View style={[styles.container, { backgroundColor: bg, borderTopColor: border }]}>
-            <View style={styles.inner}, // Mobile UI par column (upar-niche) aur alignment center rakho
-                { 
+            <View style={[styles.inner, { // Mobile UI par column (upar-niche) aur alignment center rakho
+        
                     flexDirection: isMobileUI ? "column" : "row",
                     alignItems: isMobileUI ? "center" : "flex-start",
                     textAlign: isMobileUI ? "center" : "left",
