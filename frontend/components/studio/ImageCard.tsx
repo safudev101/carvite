@@ -7,6 +7,7 @@ import {
     Animated,
     Pressable,
     Platform,
+    Dimensions
     StyleSheet,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
@@ -60,7 +61,9 @@ export const ImageCard: React.FC<ImageCardProps> = ({
         <Animated.View
             style={{
                 transform: [{ scale: scaleAnim }],
-                width: Platform.OS === 'web' ? 240 : '48%', // Web pe thora bada rakha hai
+                // Is se dono cards ke beech barabar space rahega
+                width: Platform.OS === 'web' ? 240 : (Dimensions.get('window').width / 2) - 20,
+                //width: Platform.OS === 'web' ? 240 : '48%', // Web pe thora bada rakha hai 
                 marginBottom: 16,
             }}
         >
@@ -82,11 +85,11 @@ export const ImageCard: React.FC<ImageCardProps> = ({
                 }}
             >
                 {/* --- Image Preview Section --- */}
-                <View style={{ position: 'relative', aspectRatio: 4 / 3 }}>
+                    <View style={{ width: '100%', aspectRatio: 4 / 3, position: 'relative', overflow: 'hidden' }}>
                     <Image
                         // IMPORTANT: resultUri pehle check hoga taake processed image dikhe
                         source={{ uri: image.resultUri || image.uri }}
-                        style={{ width: '100%', height: '100%' }}
+                        style={StyleSheet.absoluteFill} // Ye image ko wrapper mein fit rakhega
                         resizeMode="cover"
                     />
 
@@ -181,7 +184,7 @@ const styles = StyleSheet.create({
         padding: 2,
     },
     footer: {
-        padding: 10,
+        padding: 8, // 10 se gira kar 8 kar do
         flexDirection: 'row',
         alignItems: 'center',
         justifyContent: 'space-between',
