@@ -7,7 +7,7 @@ import {
     Animated,
     Pressable,
     Platform,
-    Dimensions
+    Dimensions,
     StyleSheet,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
