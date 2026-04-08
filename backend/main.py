@@ -99,16 +99,30 @@ def composite_image(car: Image.Image, bg: Image.Image, car_scale=0.85) -> Image.
 
     # Position car (Centered horizontally, 85% down vertically)
     x = (cw - target_w) // 2
-    y = int(ch * 0.85) - target_h 
+    # Purana logic: int(ch * 0.85) - target_h 
+    # Naya Logic: Background ke bottom se sirf 5% ka gap rakho
+    # Isse car hawa mein nahi udegi, hamesha niche floor par rahegi.
+    bottom_margin = int(ch * 0.05) 
+    y = ch - target_h - bottom_margin
+    #y = int(ch * 0.85) - target_h 
 
     result = bg.copy()
     
     # Simple Soft Shadow
     shadow = Image.new("RGBA", bg.size, (0,0,0,0))
     draw = ImageDraw.Draw(shadow)
+
+    # Shadow ko car ke bilkul niche tires ke paas rakho
+    shadow_y_start = y + target_h - 20
+    shadow_y_end = y + target_h + 20
+    draw.ellipse([x + 40, shadow_y_start, x + target_w - 40, shadow_y_end], fill=(0,0,0,130))
+    shadow = shadow.filter(ImageFilter.GaussianBlur(20))
+
+
+    #________________OLD LOGIC____________  
     # Drawing an ellipse under the tires
-    draw.ellipse([x+50, y+target_h-25, x+target_w-50, y+target_h+25], fill=(0,0,0,120))
-    shadow = shadow.filter(ImageFilter.GaussianBlur(15))
+    # draw.ellipse([x+50, y+target_h-25, x+target_w-50, y+target_h+25], fill=(0,0,0,120))
+    # shadow = shadow.filter(ImageFilter.GaussianBlur(15))
     
     result.alpha_composite(shadow)
     result.alpha_composite(car_res, (x, y))
