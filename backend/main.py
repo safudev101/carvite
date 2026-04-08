@@ -136,6 +136,20 @@ async def process(
         logger.error(f"Error: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
+# main.py mein ye routes update karo
+
+@app.get("/")
+async def root():
+    return {"message": "AutoVisio API is Running", "status": "online"}
+
 @app.get("/health")
 async def health():
-    return {"status": "alive"}
+    return {
+        "status": "ok",
+        "model_loaded": REMBG_SESSION is not None,
+        "backend": "FastAPI on Docker"
+    }
+
+# @app.get("/health")
+# async def health():
+#     return {"status": "alive"}
