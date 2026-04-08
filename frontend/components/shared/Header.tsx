@@ -6,6 +6,7 @@ import {
     StyleSheet,
     Animated,
     Platform,
+    Header,
 } from "react-native";
 import { useRouter, usePathname } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
@@ -17,6 +18,10 @@ interface HeaderProps {
     transparent?: boolean;
     showNav?: boolean;
 }
+
+// Mobile check ke liye width le lo
+const { width: screenWidth } = Dimensions.get('window');
+const isMobile = screenWidth < 768;
 
 export default function Header({ transparent = false, showNav = true }: HeaderProps) {
     const { isDark, toggleTheme } = useTheme();
@@ -58,6 +63,8 @@ export default function Header({ transparent = false, showNav = true }: HeaderPr
                     borderBottomColor: transparent ? "transparent" : borderColor,
                     transform: [{ translateY: slideY }],
                     opacity,
+                    // Mobile ke liye padding kam kar di
+                    paddingHorizontal: isMobile ? 12 : 24,
                 },
             ]}
         >
@@ -67,12 +74,13 @@ export default function Header({ transparent = false, showNav = true }: HeaderPr
                 onPress={() => router.push("/")}
                 activeOpacity={0.8}
             >
-                <View style={styles.logoMark}>
-                    <Text style={styles.logoMarkText}>AV</Text>
+                <View style={styles.logoMark}, isMobile && { width: 30, height: 30 }]}>>
+                {old snippet /*<Text style={styles.logoMarkText}>AV</Text> }*/}
+                    <Text style={[styles.logoMarkText, isMobile && { fontSize: 11 }]}>AV</Text>
                 </View>
                 <View>
-                    <Text style={[styles.logoName, { color: textColor }]}>AutoVisio</Text>
-                    <Text style={styles.logoTag}>STUDIO</Text>
+                    <Text style={[styles.logoName, { color: textColor }, isMobile && { fontSize: 13 }]}>AutoVisio</Text>
+                    {!isMobile && <Text style={styles.logoTag}>STUDIO</Text>}
                 </View>
             </TouchableOpacity>
 
@@ -90,16 +98,16 @@ export default function Header({ transparent = false, showNav = true }: HeaderPr
             )}
 
             {/* Right actions */}
-            <View style={styles.actions}>
+            <View style={styles.actions, { gap: isMobile ? 8 : 12 }]}>
                 {/* Theme toggle */}
                 <TouchableOpacity
-                    style={[styles.iconBtn, { borderColor }]}
+                    style={[styles.iconBtn, { borderColor }, isMobile && { width: 32, height: 32 }]}
                     onPress={toggleTheme}
                     activeOpacity={0.7}
                 >
                     <Ionicons
                         name={isDark ? "sunny-outline" : "moon-outline"}
-                        size={18}
+                        size={isMobile ? 16 : 18}
                         color={isDark ? Colors.silver300 : Colors.silver500}
                     />
                 </TouchableOpacity>
@@ -107,7 +115,7 @@ export default function Header({ transparent = false, showNav = true }: HeaderPr
                 {user ? (
                     <>
                         <TouchableOpacity
-                            style={styles.dashBtn}
+                            style={styles.dashBtn}, isMobile && { paddingHorizontal: 12, paddingVertical: 7 }]}
                             onPress={() => router.push("/(dashboard)")}
                             activeOpacity={0.8}
                         >
@@ -116,6 +124,8 @@ export default function Header({ transparent = false, showNav = true }: HeaderPr
                     </>
                 ) : (
                     <>
+                        {/* Mobile par Sign In hide kar sakte hain ya chota */}
+                        {!isMobile && (
                         <TouchableOpacity
                             onPress={() => router.push("/(auth)/login")}
                             style={styles.loginBtn}
@@ -124,13 +134,15 @@ export default function Header({ transparent = false, showNav = true }: HeaderPr
                             <Text style={[styles.loginBtnText, { color: isDark ? Colors.silver300 : Colors.silver500 }]}>
                                 Sign In
                             </Text>
-                        </TouchableOpacity>
+                        </TouchableOpacity> 
+                    )}
                         <TouchableOpacity
-                            style={styles.ctaBtn}
+                            style={styles.ctaBtn}, isMobile && { paddingHorizontal: 12, paddingVertical: 7 }]}
                             onPress={() => router.push("/(auth)/signup")}
                             activeOpacity={0.8}
                         >
-                            <Text style={styles.ctaBtnText}>Get Started</Text>
+                            <Text style={[styles.ctaBtnText, isMobile && { fontSize: 12 }]}>
+                                {isMobile ? "Start" : "Get Started"}
                         </TouchableOpacity>
                     </>
                 )}
@@ -141,6 +153,7 @@ export default function Header({ transparent = false, showNav = true }: HeaderPr
 
 const styles = StyleSheet.create({
     container: {
+        width: '100%',
         flexDirection: "row",
         alignItems: "center",
         justifyContent: "space-between",
