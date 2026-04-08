@@ -89,7 +89,7 @@ export default function HeroSection() {
 
     return (
         <View style={[styles.container, {
-            backgroundColor: isDark ? Colors.carbon950 : "#F8F9FB" }, 
+            backgroundColor: isDark ? Colors.carbon950 : "#F8F9FB", 
             minHeight: isWeb ? "90vh" : isMobileUI ? screenHeight * 0.95 : screenHeight * 0.88 }]}>
             {/* Background image with gradient overlay */}
             <Animated.View
@@ -223,7 +223,7 @@ export default function HeroSection() {
             {/* Stats bar */}
             <Animated.View
                 style={[
-                    styles.statsBar, isMobileUI && { flexWrap: 'wrap', justifyContent: 'center' }]}> // Ye zaroori hai
+                    styles.statsBar, isMobileUI && { flexWrap: 'wrap', justifyContent: 'center' },> // Ye zaroori hai
                     {
                         opacity: statsOpacity,
                         backgroundColor: isDark
@@ -233,6 +233,7 @@ export default function HeroSection() {
                     },
                 ]}
             >
+            
                 {stats.map((stat, i) => (
                     <View
                         key={stat.label}
