@@ -76,7 +76,6 @@ export default function Header({ transparent = false, showNav = true }: HeaderPr
                   >
                 // ✅ Corrected Line
             <View style={[styles.logoMark, isMobile && { width: 30, height: 30 }]}>
-                {old snippet /*<Text style={styles.logoMarkText}>AV</Text> }*/}
                     <Text style={[styles.logoMarkText, isMobile && { fontSize: 11 }]}>AV</Text>
                 </View>
                 <View>
