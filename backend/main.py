@@ -52,6 +52,18 @@ def remove_background(img: Image.Image) -> Image.Image:
     img_byte_arr = io.BytesIO()
     img.save(img_byte_arr, format='PNG')
     
+    # Alpha Matting enable kar di hai yahan
+    result_bytes = remove(
+        buf.read(), 
+        session=session,
+        alpha_matting=True,
+        alpha_matting_foreground_threshold=240,
+        alpha_matting_background_threshold=10,
+        alpha_matting_erode_size=10
+    )
+    return Image.open(io.BytesIO(result_bytes)).convert("RGBA")
+
+    
     # Run removal
     result_bytes = remove(img_byte_arr.getvalue(), session=session)
     return Image.open(io.BytesIO(result_bytes)).convert("RGBA")
