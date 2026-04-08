@@ -178,7 +178,7 @@ export async function compressImage(
     options: CompressOptions = {}
 ): Promise<{ uri: string; width: number; height: number }> {
     const {
-        maxWidthOrHeight = 1920,
+        maxWidthOrHeight = 1024,
         quality = 0.88,
         format = "jpeg",
     } = options;
