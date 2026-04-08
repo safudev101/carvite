@@ -13,6 +13,7 @@ import { Colors } from "../../constants/colors";
 
 const { width } = Dimensions.get("window");
 const isWide = width > 900;
+const isMobileUI = screenWidth < 768; // Mobile check
 
 const FEATURES = [
     {
@@ -58,7 +59,8 @@ function FeatureCard({
     index,
     isDark,
 }: {
-    feature: (typeof FEATURES)[0];
+    /*feature: (typeof FEATURES)[0];*/
+    { feature: any,
     index: number;
     isDark: boolean;
 }) {
@@ -94,6 +96,8 @@ function FeatureCard({
                     borderColor: border,
                     opacity,
                     transform: [{ translateY }],
+                    // Mobile par card ki width control karo
+                    width: isMobileUI ? '100%' : (isWide ? 340 : '100%')
                 },
             ]}
         >
@@ -124,24 +128,27 @@ export default function FeaturesSection() {
             style={[
                 styles.section,
                 { backgroundColor: isDark ? Colors.carbon900 : Colors.light.surfaceAlt },
+                isMobileUI && { paddingVertical: 60, paddingHorizontal: 16 } // Mobile padding
             ]}
         >
             {/* Section header */}
-            <View style={styles.header}>
+            <View style={[styles.header, isMobileUI && { marginBottom: 40 }]}>
                 <Text style={styles.eyebrow}>CAPABILITIES</Text>
                 <Text
                     style={[
                         styles.title,
-                        { color: isDark ? Colors.dark.text : Colors.light.text },
+                        { color: isDark ? Colors.dark.text : Colors.light.text }, 
+                        isMobileUI && { fontSize: 26, lineHeight: 34 } // Mobile font fix
                     ]}
                 >
-                    Everything a dealership{"\n"}
+                    Everything a dealership {isMobileUI ? : "\n"}
                     <Text style={{ color: Colors.gold, fontStyle: "italic" }}>needs to sell faster</Text>
                 </Text>
                 <Text
                     style={[
                         styles.subtitle,
-                        { color: isDark ? Colors.dark.textSecondary : Colors.light.textSecondary },
+                        { color: isDark ? Colors.dark.textSecondary : Colors.light.textSecondary }, 
+                        isMobileUI && { fontSize: 14 }
                     ]}
                 >
                     One platform, from raw photo to listing-ready image.
@@ -149,7 +156,9 @@ export default function FeaturesSection() {
             </View>
 
             {/* Feature grid */}
-            <View style={[styles.grid, isWide && styles.gridWide]}>
+            <View style={[styles.grid, isWide && styles.gridWide, 
+                // Mobile par cards ke beech gap set karo
+                isMobileUI && { gap: 16 }]}>
                 {FEATURES.map((feature, i) => (
                     <FeatureCard key={feature.title} feature={feature} index={i} isDark={isDark} />
                 ))}
@@ -168,6 +177,7 @@ const styles = StyleSheet.create({
         marginBottom: 64,
         maxWidth: 600,
         alignSelf: "center",
+        width: 100%,
     },
     eyebrow: {
         color: Colors.gold,
@@ -207,7 +217,7 @@ const styles = StyleSheet.create({
     card: {
         borderRadius: 16,
         borderWidth: 1,
-        padding: 28,
+        padding: 24,
         gap: 12,
         position: "relative",
         overflow: "hidden",
