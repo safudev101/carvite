@@ -178,6 +178,7 @@ const styles = StyleSheet.create({
         // FIXED: Remove fixed aspectRatio here because ImageCard handles it
         width: Platform.OS === 'web' ? '24%' : '48%', 
         marginBottom: 16,
+        marginRight: Platform.OS === 'web' ? '1%' : '2%', // Ye margin overlap se bachayega
         borderRadius: 14,
         position: 'relative',
     },
