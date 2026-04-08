@@ -23,7 +23,8 @@ interface ImageCardProps {
     onDownload?: () => void;
 }
 
-const { width } = Dimensions.get("window");
+const { width: screenWidth } = Dimensions.get("window");
+const isMobile = screenWidth < 768;
 
 const statusConfig: Record<ImageStatus, { label: string; variant: 'neutral' | 'gold' | 'success' | 'error' | 'info' }> = {
     idle: { label: 'Queued', variant: 'neutral' },
@@ -65,7 +66,10 @@ export const ImageCard: React.FC<ImageCardProps> = ({
                 styles.cardWrapper,
                 {
                     transform: [{ scale: scaleAnim }],
-                    width: Platform.OS === 'web' ? 240 : (width / 2) - 20,
+                    // ✅ FIXED: Mobile par properly width allocate hogi
+                    width: Platform.OS === 'web' 
+                        ? (isMobile ? (screenWidth - 40) : 260) 
+                        : (screenWidth / 2) - 16,
                 }
             ]}
         >
@@ -86,13 +90,14 @@ export const ImageCard: React.FC<ImageCardProps> = ({
                     <Image
                         source={{ uri: image.resultUri || image.uri }}
                         style={StyleSheet.absoluteFill}
-                        resizeMode="cover"
+                        // ✅ FIXED: 'contain' taake car kabhi na kategi
+                        resizeMode="contain"
                     />
 
                     {isProcessing && (
                         <View style={styles.overlay}>
-                            <Spinner size={28} color="#C9A84C" />
-                            <Text style={styles.processingText}>
+                            <Spinner size={isMobile ? 22 : 28} color="#C9A84C" />
+                            <Text style={[styles.processingText, { fontSize: isMobile ? 9 : 11 }]}>
                                 {image.status === 'uploading' ? 'Uploading…' : 'Processing AI…'}
                             </Text>
                         </View>
@@ -100,20 +105,14 @@ export const ImageCard: React.FC<ImageCardProps> = ({
 
                     {!isProcessing && (
                         <TouchableOpacity onPress={onRemove} style={styles.removeBtn}>
-                            <Ionicons name="close" size={14} color="#fff" />
+                            <Ionicons name="close" size={isMobile ? 12 : 14} color="#fff" />
                         </TouchableOpacity>
-                    )}
-
-                    {image.status === 'done' && (
-                        <View style={styles.doneBadge}>
-                            <Ionicons name="checkmark-circle" size={20} color="#4CAF50" />
-                        </View>
                     )}
                 </View>
 
                 {/* Footer */}
                 <View style={styles.footer}>
-                    <View style={{ flex: 1 }}>
+                    <View style={{ flex: 1, marginRight: 4 }}>
                         <Badge label={status.label} variant={status.variant} size="sm" />
                     </View>
 
@@ -123,8 +122,8 @@ export const ImageCard: React.FC<ImageCardProps> = ({
                             style={styles.downloadBtn}
                             activeOpacity={0.7}
                         >
-                            <Ionicons name="cloud-download" size={18} color="#000" />
-                            <Text style={styles.downloadText}>SAVE</Text>
+                            <Ionicons name="cloud-download" size={isMobile ? 14 : 18} color="#000" />
+                            <Text style={[styles.downloadText, { fontSize: isMobile ? 9 : 10 }]}>SAVE</Text>
                         </TouchableOpacity>
                     )}
 
@@ -139,80 +138,69 @@ export const ImageCard: React.FC<ImageCardProps> = ({
 
 const styles = StyleSheet.create({
     cardWrapper: {
-        marginBottom: 16,
+        marginBottom: 12,
+        marginHorizontal: 6,
     },
     pressableCard: {
-        borderRadius: 14,
+        borderRadius: 12,
         overflow: 'hidden',
-        borderWidth: 2,
+        borderWidth: 1.5,
         backgroundColor: '#111',
-        shadowOffset: { width: 0, height: 4 },
-        shadowOpacity: 0.2,
-        shadowRadius: 10,
-        elevation: 5,
+        elevation: 3,
     },
     imageContainer: {
         width: '100%',
-        aspectRatio: 4 / 3,
+        // ✅ FIXED: 16/9 widescreen car shots ke liye best hai
+        aspectRatio: 16 / 9,
+        backgroundColor: '#0A0A0A',
         position: 'relative',
         overflow: 'hidden'
     },
     overlay: {
         ...StyleSheet.absoluteFillObject,
-        backgroundColor: 'rgba(0,0,0,0.7)',
+        backgroundColor: 'rgba(0,0,0,0.75)',
         alignItems: 'center',
         justifyContent: 'center',
+        padding: 4,
     },
     processingText: {
         color: '#C9A84C',
-        fontSize: 11,
-        marginTop: 8,
+        marginTop: 6,
         fontWeight: 'bold',
         textTransform: 'uppercase',
+        textAlign: 'center',
     },
     removeBtn: {
         position: 'absolute',
-        top: 8,
-        right: 8,
-        width: 26,
-        height: 26,
-        borderRadius: 13,
-        backgroundColor: 'rgba(0,0,0,0.6)',
+        top: 6,
+        right: 6,
+        width: 22,
+        height: 22,
+        borderRadius: 11,
+        backgroundColor: 'rgba(0,0,0,0.7)',
         alignItems: 'center',
         justifyContent: 'center',
-        borderWidth: 1,
-        borderColor: 'rgba(255,255,255,0.2)',
         zIndex: 10,
     },
-    doneBadge: {
-        position: 'absolute',
-        bottom: 8,
-        right: 8,
-        backgroundColor: 'rgba(0,0,0,0.5)',
-        borderRadius: 12,
-        padding: 2,
-    },
     footer: {
-        padding: 8,
+        padding: 6,
         flexDirection: 'row',
         alignItems: 'center',
         justifyContent: 'space-between',
         backgroundColor: '#0D0D0D',
-        borderTopWidth: 1,
-        borderTopColor: 'rgba(255,255,255,0.05)',
+        minHeight: 45,
     },
     downloadBtn: {
         flexDirection: 'row',
         alignItems: 'center',
         backgroundColor: '#C9A84C',
-        paddingHorizontal: 10,
-        paddingVertical: 5,
+        paddingHorizontal: 8,
+        paddingVertical: 4,
         borderRadius: 6,
-        gap: 4,
+        gap: 3,
     },
     downloadText: {
         color: '#000',
-        fontSize: 10,
         fontWeight: 'bold',
     }
 });
