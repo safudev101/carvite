@@ -7,7 +7,6 @@ import {
     Animated,
     Dimensions,
     Platform,
-    ImageBackground,
     Image,
 } from "react-native";
 import { useRouter } from "expo-router";
@@ -16,16 +15,15 @@ import { LinearGradient } from "expo-linear-gradient";
 import { useTheme } from "../../hooks/useTheme";
 import { Colors } from "../../constants/colors";
 
-const { width, height } = Dimensions.get("window");
+const { width: windowWidth, height: windowHeight } = Dimensions.get("window");
 const isWeb = Platform.OS === "web";
-const isWide = width > 900;
-const isMobileUI = screenWidth < 768;
+const isWide = windowWidth > 900;
+const isMobileUI = windowWidth < 768;
 
 export default function HeroSection() {
     const router = useRouter();
     const { isDark } = useTheme();
 
-    // Animation refs
     const taglineOpacity = useRef(new Animated.Value(0)).current;
     const taglineY = useRef(new Animated.Value(30)).current;
     const headlineOpacity = useRef(new Animated.Value(0)).current;
@@ -66,7 +64,6 @@ export default function HeroSection() {
 
         seq.start();
 
-        // Gold glow pulse loop
         Animated.loop(
             Animated.sequence([
                 Animated.timing(glowPulse, { toValue: 1, duration: 2000, useNativeDriver: true }),
@@ -90,170 +87,80 @@ export default function HeroSection() {
     return (
         <View style={[styles.container, {
             backgroundColor: isDark ? Colors.carbon950 : "#F8F9FB", 
-            minHeight: isWeb ? "90vh" : isMobileUI ? screenHeight * 0.95 : screenHeight * 0.88 }]}>
-            {/* Background image with gradient overlay */}
-            <Animated.View
-                style={[styles.bgImage, { opacity: imageOpacity, transform: [{ scale: imageScale }] }]}
-            >
+            minHeight: isWeb ? "90vh" : isMobileUI ? windowHeight * 0.95 : windowHeight * 0.88 }]}>
+            
+            <Animated.View style={[styles.bgImage, { opacity: imageOpacity, transform: [{ scale: imageScale }] }]}>
                 <Image
-                    source={{
-                        uri: "https://images.unsplash.com/photo-1617788138017-80ad40651399?w=1600&q=80",
-                    }}
+                    source={{ uri: "https://images.unsplash.com/photo-1617788138017-80ad40651399?w=1600&q=80" }}
                     style={StyleSheet.absoluteFillObject}
                     resizeMode="cover"
                 />
             </Animated.View>
 
-            {/* Gradient overlay */}
             <LinearGradient
-                colors={
-                    isDark
-                        ? ["rgba(10,10,11,0.85)", "rgba(10,10,11,0.6)", "rgba(10,10,11,0.95)"]
-                        : ["rgba(248,249,251,0.82)", "rgba(248,249,251,0.55)", "rgba(248,249,251,0.95)"]
-                }
+                colors={isDark 
+                    ? ["rgba(10,10,11,0.85)", "rgba(10,10,11,0.6)", "rgba(10,10,11,0.95)"]
+                    : ["rgba(248,249,251,0.82)", "rgba(248,249,251,0.55)", "rgba(248,249,251,0.95)"]}
                 locations={[0, 0.5, 1]}
                 style={StyleSheet.absoluteFillObject}
             />
 
-            {/* Grid dots pattern */}
-            {isWeb && (
-                <View style={styles.dotsPattern} pointerEvents="none" />
-            )}
+            {isWeb && <View style={styles.dotsPattern} pointerEvents="none" />}
 
-            {/* Gold glow orb */}
-            <Animated.View
-                style={[styles.glowOrb, { opacity: glowOpacity }]}
-                pointerEvents="none"
-            />
+            <Animated.View style={[styles.glowOrb, { opacity: glowOpacity }]} pointerEvents="none" />
 
-            {/* Main content */}
             <View style={[styles.content, isWide && styles.contentWide, isMobileUI && { paddingTop: 60, paddingHorizontal: 20 }]}>
-                {/* Tagline badge */}
-                <Animated.View
-                    style={[
-                        styles.taglineBadge,
-                        { opacity: taglineOpacity, transform: [{ translateY: taglineY }] },
-                        isMobileUI && { alignSelf: 'center', marginBottom: 16 }
-                    ]}
-                >
+                <Animated.View style={[styles.taglineBadge, { opacity: taglineOpacity, transform: [{ translateY: taglineY }] }, isMobileUI && { alignSelf: 'center', marginBottom: 16 }]}>
                     <View style={styles.taglineDot} />
                     <Text style={[styles.taglineText, isMobileUI && { fontSize: 10 }]}>AI-Powered Automotive Imaging</Text>
                 </Animated.View>
 
-                {/* Main headline */}
-                <Animated.View
-                    style={{ opacity: headlineOpacity, transform: [{ translateY: headlineY }] }}
-                >
-                    <Text
-                        style={[
-                            styles.headline,
-                            { color: isDark ? "#F0F2F5" : Colors.carbon900 },
-                        ]}
-                    >
+                <Animated.View style={{ opacity: headlineOpacity, transform: [{ translateY: headlineY }] }}>
+                    <Text style={[styles.headline, { color: isDark ? "#F0F2F5" : Colors.carbon900 }]}>
                         {"Studio-Grade\nCar Photos.\n"}
                         <Text style={styles.headlineAccent}>Instantly.</Text>
                     </Text>
                 </Animated.View>
 
-                {/* Sub-headline */}
-                <Animated.Text
-                    style={[
-                        styles.sub,
-                        {
-                            color: isDark ? Colors.silver300 : Colors.silver500,
-                            opacity: subOpacity,
-                            transform: [{ translateY: subY }],
-                        },
-                    ]}
-                >
-                    Upload your vehicle photos, let our AI remove the background, apply
-                    premium showroom backdrops, and deliver pixel-perfect images ready
-                    for listings — in under 3 seconds each.
+                <Animated.Text style={[styles.sub, { color: isDark ? Colors.silver300 : Colors.silver500, opacity: subOpacity, transform: [{ translateY: subY }] }]}>
+                    Upload your vehicle photos, let our AI remove the background, apply premium showroom backdrops, and deliver pixel-perfect images ready for listings.
                 </Animated.Text>
 
-                {/* CTA Buttons */}
-                <Animated.View
-                    style={[
-                        styles.ctaRow,
-                        { opacity: ctaOpacity, transform: [{ translateY: ctaY }] },
-                    ]}
-                >
-                    <TouchableOpacity
-                        style={styles.ctaPrimary}
-                        onPress={() => router.push("/(auth)/signup")}
-                        activeOpacity={0.85}
-                    >
+                <Animated.View style={[styles.ctaRow, { opacity: ctaOpacity, transform: [{ translateY: ctaY }] }]}>
+                    <TouchableOpacity style={styles.ctaPrimary} onPress={() => router.push("/(auth)/signup")}>
                         <Text style={styles.ctaPrimaryText}>Start for Free</Text>
                         <Ionicons name="arrow-forward" size={18} color={Colors.carbon950} />
                     </TouchableOpacity>
 
-                    <TouchableOpacity
-                        style={[
-                            styles.ctaSecondary,
-                            {
-                                borderColor: isDark ? Colors.carbon600 : Colors.light.border,
-                                backgroundColor: isDark ? `${Colors.carbon800}80` : `${Colors.light.surface}80`,
-                            },
-                        ]}
-                        onPress={() => { }}
-                        activeOpacity={0.8}
-                    >
+                    <TouchableOpacity style={[styles.ctaSecondary, { borderColor: isDark ? Colors.carbon600 : Colors.light.border, backgroundColor: isDark ? `${Colors.carbon800}80` : `${Colors.light.surface}80` }]}>
                         <Ionicons name="play-circle-outline" size={20} color={Colors.gold} />
-                        <Text style={[styles.ctaSecondaryText, { color: isDark ? Colors.dark.text : Colors.light.text }]}>
-                            Watch Demo
-                        </Text>
+                        <Text style={[styles.ctaSecondaryText, { color: isDark ? Colors.dark.text : Colors.light.text }]}>Watch Demo</Text>
                     </TouchableOpacity>
                 </Animated.View>
 
-                {/* Trust indicators */}
                 <Animated.View style={[styles.trustRow, { opacity: ctaOpacity }]}>
-                    {["No credit card required", "Free 50 images/month", "Cancel anytime"].map(
-                        (item) => (
-                            <View key={item} style={styles.trustItem}>
-                                <Ionicons name="checkmark-circle" size={14} color={Colors.gold} />
-                                <Text style={[styles.trustText, { color: isDark ? Colors.silver300 : Colors.silver500 }]}>
-                                    {item}
-                                </Text>
-                            </View>
-                        )
-                    )}
+                    {["No credit card required", "Free 50 images/month", "Cancel anytime"].map((item) => (
+                        <View key={item} style={styles.trustItem}>
+                            <Ionicons name="checkmark-circle" size={14} color={Colors.gold} />
+                            <Text style={[styles.trustText, { color: isDark ? Colors.silver300 : Colors.silver500 }]}>{item}</Text>
+                        </View>
+                    ))}
                 </Animated.View>
             </View>
 
-            {/* Stats bar */}
-            <Animated.View
-                style={[
-                    styles.statsBar, isMobileUI && { flexWrap: 'wrap', justifyContent: 'center' },> // Ye zaroori hai
-                    {
-                        opacity: statsOpacity,
-                        backgroundColor: isDark
-                            ? `${Colors.carbon800}CC`
-                            : `${Colors.light.surface}CC`,
-                        borderTopColor: isDark ? Colors.carbon600 : Colors.light.border,
-                    },
-                ]}
-            >
-            
+            <Animated.View style={[
+                styles.statsBar, 
+                isMobileUI && { flexWrap: 'wrap', justifyContent: 'center' },
+                {
+                    opacity: statsOpacity,
+                    backgroundColor: isDark ? `${Colors.carbon800}CC` : `${Colors.light.surface}CC`,
+                    borderTopColor: isDark ? Colors.carbon600 : Colors.light.border,
+                }
+            ]}>
                 {stats.map((stat, i) => (
-                    <View
-                        key={stat.label}
-                        style={[
-                            styles.statItem,
-                            i < stats.length - 1 && {
-                                borderRightWidth: StyleSheet.hairlineWidth,
-                                borderRightColor: isDark ? Colors.carbon600 : Colors.light.border,
-                            },
-                        ]}
-                    >
+                    <View key={stat.label} style={[styles.statItem, i < stats.length - 1 && { borderRightWidth: StyleSheet.hairlineWidth, borderRightColor: isDark ? Colors.carbon600 : Colors.light.border }]}>
                         <Text style={styles.statValue}>{stat.value}</Text>
-                        <Text
-                            style={[
-                                styles.statLabel,
-                                { color: isDark ? Colors.silver400 : Colors.silver500 },
-                            ]}
-                        >
-                            {stat.label}
-                        </Text>
+                        <Text style={[styles.statLabel, { color: isDark ? Colors.silver400 : Colors.silver500 }]}>{stat.label}</Text>
                     </View>
                 ))}
             </Animated.View>
@@ -261,9 +168,8 @@ export default function HeroSection() {
     );
 }
 
-const styles = (StyleSheet.create as any)({
+const styles = StyleSheet.create({
     container: {
-        minHeight: isWeb ? "90vh" as any : height * 0.88,
         justifyContent: "center",
         overflow: "hidden",
         position: "relative",
@@ -273,10 +179,11 @@ const styles = (StyleSheet.create as any)({
     },
     dotsPattern: {
         ...StyleSheet.absoluteFillObject,
-        backgroundImage:
-            "radial-gradient(circle, rgba(201,168,76,0.07) 1px, transparent 1px)",
-        backgroundSize: "32px 32px",
-    } as any,
+        ...(isWeb && {
+            backgroundImage: "radial-gradient(circle, rgba(201,168,76,0.07) 1px, transparent 1px)",
+            backgroundSize: "32px 32px",
+        } as any),
+    },
     glowOrb: {
         position: "absolute",
         width: 600,
@@ -285,7 +192,7 @@ const styles = (StyleSheet.create as any)({
         backgroundColor: Colors.gold,
         top: "20%",
         right: -200,
-        ...(Platform.OS === "web" && { filter: "blur(120px)" } as any),
+        ...Platform.select({ web: { filter: "blur(120px)" } }),
     },
     content: {
         paddingHorizontal: 24,
@@ -323,7 +230,6 @@ const styles = (StyleSheet.create as any)({
         fontWeight: "600",
         letterSpacing: 0.8,
         textTransform: "uppercase",
-        fontFamily: Platform.select({ web: "DM Sans", default: "sans-serif" }),
     },
     headline: {
         fontSize: isWeb ? (isWide ? 68 : 48) : 38,
@@ -331,7 +237,6 @@ const styles = (StyleSheet.create as any)({
         lineHeight: isWeb ? (isWide ? 76 : 56) : 46,
         letterSpacing: -1.5,
         marginBottom: 20,
-        fontFamily: Platform.select({ web: "Playfair Display", default: "serif" }),
     },
     headlineAccent: {
         color: Colors.gold,
@@ -343,7 +248,6 @@ const styles = (StyleSheet.create as any)({
         fontWeight: "400",
         marginBottom: 36,
         maxWidth: 520,
-        fontFamily: Platform.select({ web: "DM Sans", default: "sans-serif" }),
     },
     ctaRow: {
         flexDirection: "row",
@@ -365,7 +269,6 @@ const styles = (StyleSheet.create as any)({
         fontSize: 16,
         fontWeight: "800",
         letterSpacing: 0.2,
-        fontFamily: Platform.select({ web: "DM Sans", default: "sans-serif" }),
     },
     ctaSecondary: {
         flexDirection: "row",
@@ -379,7 +282,6 @@ const styles = (StyleSheet.create as any)({
     ctaSecondaryText: {
         fontSize: 16,
         fontWeight: "600",
-        fontFamily: Platform.select({ web: "DM Sans", default: "sans-serif" }),
     },
     trustRow: {
         flexDirection: "row",
@@ -393,14 +295,12 @@ const styles = (StyleSheet.create as any)({
     },
     trustText: {
         fontSize: 13,
-        fontFamily: Platform.select({ web: "DM Sans", default: "sans-serif" }),
     },
     statsBar: {
         flexDirection: "row",
         borderTopWidth: StyleSheet.hairlineWidth,
         paddingVertical: 20,
-        backdropFilter: "blur(16px)",
-    } as any,
+    },
     statItem: {
         flex: 1,
         alignItems: "center",
@@ -412,12 +312,10 @@ const styles = (StyleSheet.create as any)({
         fontWeight: "800",
         color: Colors.gold,
         letterSpacing: -0.5,
-        fontFamily: Platform.select({ web: "Playfair Display", default: "serif" }),
     },
     statLabel: {
         fontSize: 11,
         letterSpacing: 0.5,
         marginTop: 2,
-        fontFamily: Platform.select({ web: "DM Sans", default: "sans-serif" }),
     },
 });
