@@ -43,5 +43,8 @@ ENV PORT=7860
 ENV WORKERS=1
 ENV ALLOWED_ORIGINS=*
 
-# Start server with longer timeout for AI processing
-CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "7860", "--timeout-keep-alive", "120"]
+# Dockerfile ki aakhri line replace karo
+CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "7860"]
+
+# # Start server with longer timeout for AI processing
+# CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "7860", "--timeout-keep-alive", "120"]
