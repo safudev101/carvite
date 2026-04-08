@@ -204,6 +204,7 @@ const styles = StyleSheet.create({
         justifyContent: 'center', 
         alignItems: 'center',
         marginBottom: 16,
+        marginRight: Platform.OS === 'web' ? '1%' : '2%', // Margin yahan bhi zaroori hai
     },
     addText: { color: '#444', fontSize: 11, marginTop: 4, fontWeight: '600' },
 
