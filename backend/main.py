@@ -4,6 +4,8 @@ import time
 import logging
 from typing import Optional, List
 from pathlib import Path
+import os
+from rembg import new_session
 
 from fastapi import FastAPI, UploadFile, File, Form, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
@@ -29,20 +31,41 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+
+# Ensure the home path is set correctly
+#nechay wali line comment ki hai
+#os.environ["U2NET_HOME"] = os.path.join(os.getcwd(), ".u2net")
+# Forcefully tell rembg where the model is
+os.environ["U2NET_HOME"] = "/app/.u2net"
+
 # Global Session with Lazy Loading
 REMBG_SESSION = None
 
 def get_rembg_session():
     global REMBG_SESSION
     if REMBG_SESSION is None:
-        logger.info("Loading rembg model (u2net)...")
+        logger.info(f"Loading rembg model from: {os.environ['U2NET_HOME']}")
         try:
+            # Ab ye specific path se uthaye ga
             REMBG_SESSION = new_session("u2net")
+            logger.info("Model loaded successfully!")
         except Exception as e:
-            logger.error(f"Failed to load model: {e}")
-            # Fallback to loading without session if it fails
-            return None
+            logger.error(f"FATAL ERROR: Could not load u2net: {e}")
+            # Isay None return mat karo balkay error throw karo 
+            # taake aapko pata chalay ke masla kya hai
+            raise e 
     return REMBG_SESSION
+# def get_rembg_session():
+#     global REMBG_SESSION
+#     if REMBG_SESSION is None:
+#         logger.info("Loading rembg model (u2net)...")
+#         try:
+#             REMBG_SESSION = new_session("u2net")
+#         except Exception as e:
+#             logger.error(f"Failed to load model: {e}")
+#             # Fallback to loading without session if it fails
+#             return None
+#     return REMBG_SESSION
 
 # --- Helpers ---
 
@@ -51,7 +74,7 @@ def remove_background(img: Image.Image) -> Image.Image:
     # rembg works best with bytes
     img_byte_arr = io.BytesIO()
     img.save(img_byte_arr, format='PNG')
-    
+
     # Alpha Matting enable kar di hai yahan
     result_bytes = remove(
         buf.read(), 
@@ -62,7 +85,6 @@ def remove_background(img: Image.Image) -> Image.Image:
         alpha_matting_erode_size=10
     )
     return Image.open(io.BytesIO(result_bytes)).convert("RGBA")
-
     
     # Run removal
     result_bytes = remove(img_byte_arr.getvalue(), session=session)
@@ -148,11 +170,22 @@ async def process(
         logger.error(f"Error: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
+
 # main.py mein ye routes update karo
 
 @app.get("/")
 async def root():
     return {"message": "AutoVisio API is Running", "status": "online"}
+
+@app.on_event("startup")
+async def startup_event():
+    logger.info("AutoVisio is starting... Pre-loading AI models.")
+    try:
+        # Ye function aapke model ko load kar ke global variable mein save kar dega
+        get_rembg_session() 
+        logger.info("AI Model loaded and ready to use!")
+    except Exception as e:
+        logger.error(f"Startup Model Load Failed: {e}")
 
 @app.get("/health")
 async def health():
