@@ -1,7 +1,8 @@
 import * as FileSystem from 'expo-file-system';
 import { Platform } from 'react-native';
 
-const API_BASE = process.env.EXPO_PUBLIC_AI_API_URL ?? '';
+// DIRECT URL: Ab .env ki tension khatam
+const API_BASE = "https://khan19970-carvite.hf.space";
 
 export interface ProcessOptions {
     bgId?: string;
@@ -21,20 +22,20 @@ async function buildFormData(imageUri: string, fileName: string, opts: ProcessOp
         const blob = await res.blob();
         form.append('image', blob, fileName);
     } else {
+        // Mobile fixed format
         form.append('image', {
             uri: imageUri,
-            name: fileName,
+            name: fileName || 'car_photo.jpg',
             type: 'image/jpeg', 
         } as any);
     }
 
-    if (opts.bgId) form.append('bg_id', opts.bgId);
+    // Backend params (jo humne Python mein likhe hain)
     if (opts.bgUrl) form.append('bg_url', opts.bgUrl);
     if (opts.bgColor) form.append('bg_color', opts.bgColor);
-    form.append('output_format', opts.outputFormat ?? 'WEBP');
-    form.append('quality', String(opts.quality ?? 88));
-    form.append('add_shadow', String(opts.addShadow ?? true));
-    form.append('car_scale', String(opts.carScale ?? 0.82));
+    
+    // Default values set to match our professional logic
+    form.append('car_scale', String(opts.carScale ?? 0.88)); 
 
     return form;
 }
@@ -44,61 +45,56 @@ export async function processSingleImage(
     fileName: string,
     opts: ProcessOptions = {}
 ): Promise<string> {
-    console.log("[AI] Processing image:", fileName);
+    console.log("[AI] Connecting to Hugging Face:", API_BASE);
     
-    if (!API_BASE) {
-        console.error("[AI] API URL is missing! Check .env file.");
-        throw new Error("AI API URL missing.");
-    }
-
     const form = await buildFormData(imageUri, fileName, opts);
     
     try {
         const res = await fetch(`${API_BASE}/process`, {
             method: 'POST',
             body: form,
-            // Timeout add karne se loop break nahi hoga agar HF slow ho
-            signal: AbortSignal.timeout(60000) // 60 seconds
+            // 60 seconds wait taake model "awake" ho jaye
+            signal: AbortSignal.timeout(60000) 
         });
 
         if (!res.ok) {
             const errorText = await res.text();
             console.error(`[AI] Backend Error (${res.status}):`, errorText);
-            throw new Error(`AI Backend returned ${res.status}: ${errorText}`);
+            throw new Error(`AI Backend returned ${res.status}`);
         }
 
-        // Response check: Hamein file milni chahiye
         const blob = await res.blob();
-        if (blob.size === 0) throw new Error("AI Backend returned an empty file.");
+        if (blob.size === 0) throw new Error("Empty response from AI");
 
-        console.log(`[AI] Success! Received processed image (${blob.size} bytes)`);
+        console.log(`[AI] Success! Received Image: ${blob.size} bytes`);
 
         if (Platform.OS === 'web') {
             return URL.createObjectURL(blob);
         } else {
-            // Mobile storage logic
             const timestamp = Date.now();
-            const localPath = `${FileSystem.cacheDirectory}processed_${timestamp}.webp`;
-            const base64 = await blobToBase64(blob); // Helper below
-            await FileSystem.writeAsStringAsync(localPath, base64, { encoding: FileSystem.EncodingType.Base64 });
+            // Using PNG as base since our model returns PNG for best quality
+            const localPath = `${FileSystem.cacheDirectory}processed_${timestamp}.png`;
+            const base64 = await blobToBase64(blob);
+            await FileSystem.writeAsStringAsync(localPath, base64, { 
+                encoding: FileSystem.EncodingType.Base64 
+            });
             return localPath;
         }
     } catch (error: any) {
         if (error.name === 'TimeoutError') {
-            console.error("[AI] API Timeout - Hugging Face might be waking up.");
+            console.error("[AI] Hugging Face is taking too long to wake up.");
         }
-        console.error("[AI] Critical Error:", error.message);
-        throw error; // Store will catch this and mark FAILED
+        console.error("[AI] Error:", error.message);
+        throw error;
     }
 }
 
-// Helper to handle base64 on mobile
 function blobToBase64(blob: Blob): Promise<string> {
     return new Promise((resolve, reject) => {
         const reader = new FileReader();
         reader.onloadend = () => {
             const base64String = reader.result as string;
-            resolve(base64String.split(',')[1]); // Remove data:image/*;base64,
+            resolve(base64String.split(',')[1]); 
         };
         reader.onerror = reject;
         reader.readAsDataURL(blob);
