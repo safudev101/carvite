@@ -25,43 +25,48 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-os.environ["U2NET_HOME"] = "/app/.u2net"
+# Vercel temporary writable directory for model storage
+os.environ["U2NET_HOME"] = "/tmp/.u2net"
 REMBG_SESSION = None
 
 def get_rembg_session():
     global REMBG_SESSION
     if REMBG_SESSION is None:
         try:
-            REMBG_SESSION = new_session("u2net")
-            logger.info("Model loaded successfully!")
+            # SECRET: 'isnet-general-use' car photography ke liye best model hai
+            REMBG_SESSION = new_session("isnet-general-use")
+            logger.info("Advanced ISNet Model loaded successfully!")
         except Exception as e:
-            logger.error(f"FATAL ERROR: Could not load u2net: {e}")
+            logger.error(f"FATAL ERROR: Could not load model: {e}")
             raise e 
     return REMBG_SESSION
 
-# --- AI & Blending Helpers ---
+# --- Advanced AI & Blending Helpers ---
 
 def remove_background_logic(img: Image.Image) -> Image.Image:
     session = get_rembg_session()
+    
+    # Image ko convert karke bytes mein lena
     img_byte_arr = io.BytesIO()
     img.save(img_byte_arr, format='PNG')
     input_bytes = img_byte_arr.getvalue()
 
-    # Optimized Alpha Matting for remove.bg style smoothness
+    # remove.bg style alpha matting
     result_bytes = remove(
         input_bytes,
         session=session,
         alpha_matting=True,
         alpha_matting_foreground_threshold=240,
-        alpha_matting_background_threshold=15, # Slightly increased for cleaner edges
-        alpha_matting_erode_size=8
+        alpha_matting_background_threshold=10,
+        alpha_matting_erode_size=12 # Barik edges ko handle karne ke liye
     )
     
     car = Image.open(io.BytesIO(result_bytes)).convert("RGBA")
     
-    # Feathering: Edges ko halka sa blur karna takay background mein blend ho jaye
-    mask = car.split()[3] # Alpha channel
-    mask = mask.filter(ImageFilter.GaussianBlur(1)) # Very slight blur on edge
+    # --- Edge Smoothing Secret ---
+    # Car ke edges ko sharp digital cut ke bajaye smooth banane ke liye
+    mask = car.split()[3]
+    mask = mask.filter(ImageFilter.GaussianBlur(1.1))
     car.putalpha(mask)
     
     return car
@@ -73,64 +78,58 @@ def build_background(width, height, bg_url=None, bg_color_hex=None) -> Image.Ima
                 resp = client.get(bg_url, timeout=15)
                 if resp.status_code == 200:
                     bg = Image.open(io.BytesIO(resp.content)).convert("RGBA")
-                    return ImageOps.fit(bg, (width, height), Image.Resampling.LANCZOS)
+                    # Background ko filhal raw rakhte hain, composite mein resize karenge
+                    return bg
         except Exception as e:
-            logger.warning(f"BG URL failed: {e}, using fallback color.")
+            logger.warning(f"BG URL failed: {e}")
 
+    # Default color background
     color = (26, 26, 26, 255) 
     if bg_color_hex and bg_color_hex.startswith("#"):
         try:
             h = bg_color_hex.lstrip('#')
             color = tuple(int(h[i:i+2], 16) for i in (0, 2, 4)) + (255,)
         except: pass
-
     return Image.new("RGBA", (width, height), color)
 
-def composite_image(car: Image.Image, bg: Image.Image, car_scale=0.82) -> Image.Image:
-    cw, ch = bg.size
+def composite_image(car: Image.Image, bg: Image.Image, car_scale=0.88) -> Image.Image:
+    # PIXELATION FIX: Background ko car ke size par scale karein (Original quality preserve)
+    bg_final = ImageOps.fit(bg, car.size, Image.Resampling.LANCZOS)
+    cw, ch = bg_final.size
     
-    # 1. Scale car proportionally
+    # Car scaling logic
     target_w = int(cw * car_scale)
     ratio = target_w / car.width
     target_h = int(car.height * ratio)
+    
+    # Sharp resize for car
     car_res = car.resize((target_w, target_h), Image.Resampling.LANCZOS)
 
-    # 2. Match Lighting (Blending Logic)
-    # Background kitna bright hai us ke mutabiq car ko adjust karna
-    stat = ImageOps.grayscale(bg).getentries()
+    # Lighting match based on background brightness
+    stat = ImageOps.grayscale(bg_final).getentries()
     avg_brightness = sum(k * v for k, v in stat) / (cw * ch)
-    # Bright background pe car ko bright karo, dark pe dark
     enhancer = ImageEnhance.Brightness(car_res)
-    car_res = enhancer.enhance(0.9 + (avg_brightness / 512)) # Dynamic adjustment
+    car_res = enhancer.enhance(0.95 + (avg_brightness / 512))
 
-    # 3. Positioning
+    # Positioning
     x = (cw - target_w) // 2
-    y = ch - target_h - int(ch * 0.12) # Slightly higher to show more shadow depth
+    y = ch - target_h - int(ch * 0.08)
 
-    result = bg.copy()
+    result = bg_final.copy()
     
-    # 4. Realistic Layered Shadows
-    shadow_canvas = Image.new("RGBA", bg.size, (0,0,0,0))
+    # --- Realistic Layered Shadows ---
+    shadow_canvas = Image.new("RGBA", (cw, ch), (0,0,0,0))
     draw = ImageDraw.Draw(shadow_canvas)
+    
+    # 1. Ambient Shadow (Halki aur phaili hui)
+    draw.ellipse([x+20, y+target_h-20, x+target_w-20, y+target_h+25], fill=(0,0,0,85))
+    
+    # 2. Contact Shadow (Gahri, tyres ke bilkul niche)
+    draw.ellipse([x+60, y+target_h-10, x+target_w-60, y+target_h+12], fill=(0,0,0,160))
+    
+    shadow_canvas = shadow_canvas.filter(ImageFilter.GaussianBlur(18))
 
-    # A. Contact Shadow (Darkest area under tires)
-    c_shadow_w = int(target_w * 0.75)
-    c_shadow_h = int(target_h * 0.08)
-    c_x0 = x + (target_w - c_shadow_w) // 2
-    c_y0 = y + target_h - (c_shadow_h // 2)
-    draw.ellipse([c_x0, c_y0, c_x0 + c_shadow_w, c_y0 + c_shadow_h], fill=(0,0,0,180))
-
-    # B. Ambient Shadow (Softer, larger shadow)
-    a_shadow_w = int(target_w * 0.9)
-    a_shadow_h = int(target_h * 0.15)
-    a_x0 = x + (target_w - a_shadow_w) // 2
-    a_y0 = y + target_h - (a_shadow_h // 2)
-    draw.ellipse([a_x0, a_y0, a_x0 + a_shadow_w, a_y0 + a_shadow_h], fill=(0,0,0,80))
-
-    # Blur shadows
-    shadow_canvas = shadow_canvas.filter(ImageFilter.GaussianBlur(15))
-
-    # 5. Final Assembly
+    # Final Stacking (No more black background)
     result.alpha_composite(shadow_canvas)
     result.alpha_composite(car_res, (x, y))
     
@@ -143,24 +142,28 @@ async def process(
     image: UploadFile = File(...),
     bg_url: Optional[str] = Form(None),
     bg_color: Optional[str] = Form(None),
-    output_format: str = Form("PNG"), # Default to PNG for transparency safety
+    output_format: str = Form("PNG"),
     quality: int = Form(95)
 ):
     try:
         data = await image.read()
         img = Image.open(io.BytesIO(data)).convert("RGBA")
         
+        # Original car resolution se mask generate karna
         car = remove_background_logic(img)
+        
+        # Background standard ya URL se lena
         bg = build_background(1920, 1080, bg_url, bg_color)
         
+        # High resolution composite
         final = composite_image(car, bg)
         
         buf = io.BytesIO()
-        # Ensure we always use high quality for processing
-        final.save(buf, format=output_format.upper(), quality=quality, subsampling=0)
+        # Quality save karte waqt optimize karna
+        final.save(buf, format="PNG", optimize=True)
         
         buf.seek(0)
-        return Response(content=buf.getvalue(), media_type=f"image/{output_format.lower()}")
+        return Response(content=buf.getvalue(), media_type="image/png")
 
     except Exception as e:
         logger.error(f"Processing Error: {e}")
