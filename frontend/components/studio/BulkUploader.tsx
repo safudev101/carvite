@@ -1,39 +1,18 @@
-import React, { useState } from 'react';
-import { View, Text, TouchableOpacity, ScrollView, Image, ActivityIndicator, Platform } from 'react-native';
+import React from 'react';
+import { View, Text, TouchableOpacity, ScrollView, ActivityIndicator, Platform, StyleSheet } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import * as ImagePicker from 'expo-image-picker';
-import * as FileSystem from 'expo-file-system';
 import * as MediaLibrary from 'expo-media-library';
 import { useStudioStore } from '@/stores/studioStore';
 import { useImageProcessor } from '@/hooks/useImageProcessor';
 import { BackgroundPicker } from './BackgroundPicker';
 import { ImageCard } from './ImageCard';
 
-export const BulkUploader = () => {
-    const { images, addImages, clearAllImages, isProcessing } = useStudioStore();
+export const BulkUploader: React.FC = () => {
+    const { images, addImages, clearAllImages, isProcessing, processingProgress } = useStudioStore();
     const { processAllImages } = useImageProcessor();
 
-    // --- DOWNLOAD LOGIC ---
-    const downloadImage = async (uri: string) => {
-        try {
-            if (Platform.OS === 'web') {
-                const link = document.createElement('a');
-                link.href = uri;
-                link.download = `autovisio_${Date.now()}.png`;
-                link.click();
-            } else {
-                const { status } = await MediaLibrary.requestPermissionsAsync();
-                if (status === 'granted') {
-                    const asset = await MediaLibrary.createAssetAsync(uri);
-                    await MediaLibrary.createAlbumAsync('AutoVisio', asset, false);
-                    alert('Saved to Gallery!');
-                }
-            }
-        } catch (err) {
-            alert('Download failed!');
-        }
-    };
-
+    // --- 1. Image Picker Logic ---
     const pickImages = async () => {
         let result = await ImagePicker.launchImageLibraryAsync({
             mediaTypes: ImagePicker.MediaTypeOptions.Images,
@@ -42,73 +21,150 @@ export const BulkUploader = () => {
         });
 
         if (!result.canceled) {
-            const newImages = result.assets.map(asset => ({
-                id: Math.random().toString(36),
+            const newImages = result.assets.map((asset) => ({
+                id: `img_${Date.now()}_${Math.random()}`,
                 uri: asset.uri,
+                fileName: asset.fileName || `car.jpg`,
                 status: 'idle',
             }));
             addImages(newImages);
         }
     };
 
+    // --- 2. Download Logic ---
+    const handleDownload = async (uri: string) => {
+        if (Platform.OS === 'web') {
+            const link = document.createElement('a');
+            link.href = uri;
+            link.download = `autovisio_car_${Date.now()}.png`;
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+        } else {
+            const { status } = await MediaLibrary.requestPermissionsAsync();
+            if (status === 'granted') {
+                const asset = await MediaLibrary.createAssetAsync(uri);
+                alert("Saved to Gallery!");
+            }
+        }
+    };
+
+    const pendingImages = images.filter(img => img.status === 'idle' || img.status === 'error');
+
     return (
-        <View style={{ flex: 1, backgroundColor: '#000' }}>
-            {/* 1. CUSTOM NAV BAR (Carmera Style) */}
-            <View style={{ height: 60, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', px: 20, borderBottomWidth: 1, borderBottomColor: '#222', backgroundColor: '#000', paddingHorizontal: 15 }}>
-                <Text style={{ color: '#fff', fontSize: 18, fontWeight: 'bold' }}>AutoVisio <Text style={{ color: '#C9A84C' }}>Studio</Text></Text>
-                <View style={{ flexDirection: 'row', gap: 15 }}>
-                    <Ionicons name="grid-outline" size={22} color="#fff" />
-                    <Ionicons name="person-circle-outline" size={24} color="#fff" />
+        <View style={styles.container}>
+            {/* --- CUSTOM NAVIGATION (Carmera.eu Style) --- */}
+            <View style={styles.navBar}>
+                <View style={styles.logoContainer}>
+                    <View style={styles.logoIcon}><Text style={styles.logoText}>AV</Text></View>
+                    <Text style={styles.brandName}>AutoVisio <Text style={{color: '#C9A84C'}}>Studio</Text></Text>
+                </View>
+                <View style={styles.navIcons}>
+                    <TouchableOpacity style={styles.iconBtn}><Ionicons name="layers-outline" size={20} color="#fff" /></TouchableOpacity>
+                    <TouchableOpacity style={styles.iconBtn}><Ionicons name="person-outline" size={20} color="#fff" /></TouchableOpacity>
                 </View>
             </View>
 
-            <ScrollView contentContainerStyle={{ padding: 15 }}>
-                {/* 2. BACKGROUND SELECTOR (No Duplicates) */}
-                <Text style={{ color: '#666', fontSize: 12, marginBottom: 10, fontWeight: 'bold' }}>CHOOSE BACKGROUND</Text>
-                <BackgroundPicker />
-
-                <View style={{ height: 30 }} />
-
-                {/* 3. UPLOAD QUEUE HEADER */}
-                <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 15 }}>
-                    <Text style={{ color: '#fff', fontSize: 16, fontWeight: 'bold' }}>CAR PHOTOS ({images.length})</Text>
-                    {images.length > 0 && !isProcessing && (
-                        <TouchableOpacity onPress={clearAllImages}>
-                            <Text style={{ color: '#FF4444', fontWeight: 'bold' }}>Clear All</Text>
-                        </TouchableOpacity>
-                    )}
+            <ScrollView contentContainerStyle={styles.scrollContent}>
+                {/* --- BACKGROUND SELECTOR --- */}
+                <View style={styles.section}>
+                    <Text style={styles.sectionTitle}>SELECT STAGE</Text>
+                    <BackgroundPicker />
                 </View>
 
-                {/* 4. RESPONSIVE GRID */}
-                <View style={{ flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'space-between' }}>
-                    {images.map((img) => (
-                        <View key={img.id} style={{ width: '48%', marginBottom: 15 }}>
-                            <ImageCard image={img} onDownload={() => downloadImage(img.resultUri!)} />
+                {/* --- UPLOAD QUEUE --- */}
+                <View style={styles.section}>
+                    <View style={styles.sectionHeader}>
+                        <Text style={styles.sectionTitle}>VEHICLE PHOTOS ({images.length})</Text>
+                        {images.length > 0 && !isProcessing && (
+                            <TouchableOpacity onPress={clearAllImages}>
+                                <Text style={styles.clearBtn}>Clear All</Text>
+                            </TouchableOpacity>
+                        )}
+                    </View>
+
+                    {/* --- PROGRESS BAR --- */}
+                    {isProcessing && (
+                        <View style={styles.progressContainer}>
+                            <View style={[styles.progressBar, { width: `${processingProgress}%` }]} />
+                            <Text style={styles.progressText}>Processing AI Magic... {processingProgress}%</Text>
                         </View>
-                    ))}
-                    
-                    {/* Add Button as a Card */}
-                    <TouchableOpacity onPress={pickImages} style={{ width: '48%', height: 120, backgroundColor: '#111', borderRadius: 10, borderStyle: 'dashed', borderWidth: 1, borderColor: '#333', justifyContent: 'center', alignItems: 'center' }}>
-                        <Ionicons name="add" size={30} color="#C9A84C" />
-                        <Text style={{ color: '#666', fontSize: 12 }}>Add Photo</Text>
-                    </TouchableOpacity>
+                    )}
+
+                    {/* --- RESPONSIVE GRID --- */}
+                    <View style={styles.grid}>
+                        {images.map((img) => (
+                            <View key={img.id} style={styles.cardWrapper}>
+                                <ImageCard 
+                                    image={img} 
+                                    onDownload={() => img.resultUri && handleDownload(img.resultUri)} 
+                                />
+                            </View>
+                        ))}
+
+                        {/* ADD BUTTON AS CARD */}
+                        {!isProcessing && images.length < 10 && (
+                            <TouchableOpacity onPress={pickImages} style={styles.addCard}>
+                                <Ionicons name="add" size={32} color="#C9A84C" />
+                                <Text style={styles.addText}>Add Photo</Text>
+                            </TouchableOpacity>
+                        )}
+                    </View>
                 </View>
+                
+                <View style={{ height: 100 }} />
             </ScrollView>
 
-            {/* 5. FLOATING ENHANCE BUTTON */}
-            {images.length > 0 && !isProcessing && (
-                <View style={{ position: 'absolute', bottom: 20, left: 20, right: 20 }}>
-                    <TouchableOpacity 
-                        onPress={processAllImages}
-                        style={{ backgroundColor: '#C9A84C', padding: 18, borderRadius: 15, alignItems: 'center', shadowColor: '#C9A84C', shadowOpacity: 0.3, shadowRadius: 10, elevation: 5 }}
-                    >
-                        <Text style={{ color: '#000', fontWeight: 'bold', fontSize: 16 }}>ENHANCE ALL IMAGES</Text>
+            {/* --- FLOATING ENHANCE BUTTON --- */}
+            {pendingImages.length > 0 && !isProcessing && (
+                <View style={styles.footer}>
+                    <TouchableOpacity onPress={processAllImages} style={styles.enhanceBtn}>
+                        <Ionicons name="sparkles" size={20} color="#000" style={{marginRight: 8}} />
+                        <Text style={styles.enhanceBtnText}>ENHANCE {pendingImages.length} PHOTOS</Text>
                     </TouchableOpacity>
                 </View>
             )}
         </View>
     );
 };
+
+const styles = StyleSheet.create({
+    container: { flex: 1, backgroundColor: '#000' },
+    navBar: { 
+        height: 70, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', 
+        paddingHorizontal: 20, borderBottomWidth: 1, borderBottomColor: '#1A1A1A', backgroundColor: '#000' 
+    },
+    logoContainer: { flexDirection: 'row', alignItems: 'center' },
+    logoIcon: { width: 32, height: 32, backgroundColor: '#C9A84C', borderRadius: 8, justifyContent: 'center', alignItems: 'center', marginRight: 10 },
+    logoText: { color: '#000', fontWeight: 'bold', fontSize: 16 },
+    brandName: { color: '#fff', fontSize: 18, fontWeight: '800', letterSpacing: -0.5 },
+    navIcons: { flexDirection: 'row', gap: 12 },
+    iconBtn: { width: 40, height: 40, borderRadius: 20, backgroundColor: '#111', justifyContent: 'center', alignItems: 'center' },
+    scrollContent: { padding: 20 },
+    section: { marginBottom: 30 },
+    sectionHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 15 },
+    sectionTitle: { color: '#444', fontSize: 12, fontWeight: 'bold', letterSpacing: 1 },
+    clearBtn: { color: '#FF4444', fontSize: 12, fontWeight: '600' },
+    grid: { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'space-between' },
+    cardWrapper: { width: Platform.OS === 'web' ? '31%' : '48%', marginBottom: 15 },
+    addCard: { 
+        width: Platform.OS === 'web' ? '31%' : '48%', height: 150, backgroundColor: '#0A0A0A', 
+        borderRadius: 12, borderStyle: 'dashed', borderWidth: 1, borderColor: '#222', 
+        justifyContent: 'center', alignItems: 'center' 
+    },
+    addText: { color: '#444', fontSize: 12, marginTop: 8 },
+    progressContainer: { height: 40, backgroundColor: '#111', borderRadius: 8, marginBottom: 20, justifyContent: 'center', overflow: 'hidden' },
+    progressBar: { position: 'absolute', left: 0, top: 0, bottom: 0, backgroundColor: 'rgba(201, 168, 76, 0.2)' },
+    progressText: { textAlign: 'center', color: '#C9A84C', fontSize: 12, fontWeight: 'bold' },
+    footer: { position: 'absolute', bottom: 30, left: 20, right: 20 },
+    enhanceBtn: { 
+        backgroundColor: '#C9A84C', height: 55, borderRadius: 15, flexDirection: 'row', 
+        justifyContent: 'center', alignItems: 'center', shadowColor: '#C9A84C', shadowOpacity: 0.4, shadowRadius: 15, elevation: 8 
+    },
+    enhanceBtnText: { color: '#000', fontWeight: 'bold', fontSize: 16 },
+});
+
+
 
 // import React from 'react';
 // import { View, Text, TouchableOpacity, ScrollView, ActivityIndicator, useWindowDimensions, Platform } from 'react-native';
