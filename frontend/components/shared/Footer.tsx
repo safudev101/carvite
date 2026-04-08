@@ -1,19 +1,14 @@
 import React from "react";
 import { View, Text, TouchableOpacity, StyleSheet, Platform, Dimensions } from "react-native";
-import { Ionicons } from "@expo/vector-icons";
 import { useTheme } from "../../hooks/useTheme";
 import { Colors } from "../../constants/colors";
 
-
 // Screen width check
 const { width: screenWidth } = Dimensions.get('window');
-const isMobile = screenWidth < 768;
 
 export default function Footer() {
     const { isDark } = useTheme();
-    // Screen width ka use karo responsive layout ke liye
-    const { width: windowWidth } = Dimensions.get('window');
-    const isMobileUI = windowWidth < 768; // 768px se choti screen mobile treat hogi
+    const isMobileUI = screenWidth < 768; 
     
     const bg = isDark ? Colors.carbon900 : Colors.light.surfaceAlt;
     const border = isDark ? Colors.carbon600 : Colors.light.border;
@@ -29,21 +24,20 @@ export default function Footer() {
 
     return (
         <View style={[styles.container, { backgroundColor: bg, borderTopColor: border }]}>
-            <View style={[styles.inner, { // Mobile UI par column (upar-niche) aur alignment center rakho
-        
+            <View style={[
+                styles.inner, 
+                { 
                     flexDirection: isMobileUI ? "column" : "row",
                     alignItems: isMobileUI ? "center" : "flex-start",
-                    textAlign: isMobileUI ? "center" : "left",
                     paddingHorizontal: isMobileUI ? 20 : 32 
                 }
             ]}>
-                {/* Brand */}
-                <View style={styles.brandSection}, isMobileUI && { alignItems: "center" }]}>
-                    <View style={styles.logoMark}>
+                {/* Brand Section */}
+                <View style={[styles.brandSection, isMobileUI && { alignItems: "center" }]}>
                     <View style={styles.logoMark}>
                         <Text style={styles.logoText}>AV</Text>
                     </View>
-                   <View style={[{ marginTop: 12, maxWidth: 280 }, isMobileUI && { alignItems: "center" }]}>
+                    <View style={[{ marginTop: 12, maxWidth: 280 }, isMobileUI && { alignItems: "center" }]}>
                         <Text style={[styles.brandName, { color: isDark ? Colors.dark.text : Colors.light.text }]}>
                             AutoVisio Studio
                         </Text>
@@ -53,12 +47,11 @@ export default function Footer() {
                     </View>
                 </View>
 
-            
-                {/* Links */}
-               <View style={[
+                {/* Links Section */}
+                <View style={[
                     styles.linksSection, 
                     isMobileUI && { 
-                        flexDirection: "row", // Mobile pe links ko line mein dikhao
+                        flexDirection: "row", 
                         flexWrap: "wrap", 
                         justifyContent: "center",
                         gap: 20 
@@ -72,14 +65,15 @@ export default function Footer() {
                 </View>
             </View>
 
-            {/* Bottom bar */}
-            <View style={[styles.bottom, { 
+            {/* Bottom Bar */}
+            <View style={[
+                styles.bottom, 
+                { 
                     borderTopColor: border,
                     flexDirection: isMobileUI ? "column" : "row",
                     paddingHorizontal: isMobileUI ? 20 : 32 
                 }
-            ]}>>
-                
+            ]}>
                 <Text style={[styles.copyright, { color: textMuted }]}>
                     © {new Date().getFullYear()} AutoVisio Studio. All rights reserved.
                 </Text>
@@ -98,11 +92,9 @@ const styles = StyleSheet.create({
     container: {
         borderTopWidth: StyleSheet.hairlineWidth,
         paddingTop: 48,
-        width: 100%,
+        width: "100%", // Fixed: added quotes
     },
     inner: {
-        paddingHorizontal: 32,
-        flexDirection: Platform.OS === "web" ? "row" : "column",
         justifyContent: "space-between",
         gap: 40,
         maxWidth: 1200,
@@ -149,9 +141,7 @@ const styles = StyleSheet.create({
     bottom: {
         marginTop: 48,
         paddingVertical: 20,
-        paddingHorizontal: 32,
         borderTopWidth: StyleSheet.hairlineWidth,
-        flexDirection: Platform.OS === "web" ? "row" : "column",
         justifyContent: "space-between",
         alignItems: "center",
         gap: 12,
