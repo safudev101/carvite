@@ -88,7 +88,7 @@ export default function StudioDashboard() {
                 </LinearGradient>
 
                 {/* ── MAIN STUDIO AREA ── */}
-                <View style={{ padding: 16, gap: 20 }}>
+                <View style={{ padding: 16, gap: 20, width: '100%', alignitems: 'center'}}>
                     
                     {/* MAZAY KI BAAT:
                         Aapne yahan se BackgroundPicker wala card hata diya hai 
