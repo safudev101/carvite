@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { View, Text, TouchableOpacity, ScrollView, Platform, StyleSheet, Image } from 'react-native';
+import { View, Text, TouchableOpacity, ScrollView, Platform, StyleSheet, Dimensions } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import * as ImagePicker from 'expo-image-picker';
 import * as MediaLibrary from 'expo-media-library';
@@ -8,14 +8,13 @@ import { useImageProcessor } from '@/hooks/useImageProcessor';
 import { BackgroundPicker } from './BackgroundPicker';
 import { ImageCard } from './ImageCard';
 
+const { width: screenWidth } = Dimensions.get('window');
+
 export const BulkUploader: React.FC = () => {
     const { images, addImages, clearAllImages, isProcessing, processingProgress } = useStudioStore();
     const { processAllImages } = useImageProcessor();
-    
-    // --- Selection State for Car Images ---
     const [selectedId, setSelectedId] = useState<string | null>(null);
 
-    // --- 1. Image Picker Logic ---
     const pickImages = async () => {
         let result = await ImagePicker.launchImageLibraryAsync({
             mediaTypes: ImagePicker.MediaTypeOptions.Images,
@@ -34,7 +33,6 @@ export const BulkUploader: React.FC = () => {
         }
     };
 
-    // --- 2. Download Logic ---
     const handleDownload = async (uri: string) => {
         if (Platform.OS === 'web') {
             const link = document.createElement('a');
@@ -56,7 +54,7 @@ export const BulkUploader: React.FC = () => {
 
     return (
         <View style={styles.container}>
-            {/* --- TOP NAVIGATION (Carmera Style) --- */}
+            {/* Nav Bar logic same rahegi */}
             <View style={styles.navBar}>
                 <View style={styles.logoContainer}>
                     <View style={styles.logoIcon}><Text style={styles.logoText}>AV</Text></View>
@@ -70,7 +68,6 @@ export const BulkUploader: React.FC = () => {
 
             <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
                 
-                {/* --- 1. STAGE SELECTION (Backgrounds) --- */}
                 <View style={styles.section}>
                     <View style={styles.sectionHeader}>
                         <Text style={styles.sectionTitle}>1. SELECT STAGE</Text>
@@ -78,7 +75,6 @@ export const BulkUploader: React.FC = () => {
                     <BackgroundPicker />
                 </View>
 
-                {/* --- 2. VEHICLE QUEUE (The Grid) --- */}
                 <View style={styles.section}>
                     <View style={styles.sectionHeader}>
                         <Text style={styles.sectionTitle}>2. VEHICLE PHOTOS ({images.length})</Text>
@@ -89,11 +85,10 @@ export const BulkUploader: React.FC = () => {
                         )}
                     </View>
 
-                    {/* AI Progress Bar */}
                     {isProcessing && (
                         <View style={styles.progressContainer}>
                             <View style={[styles.progressBar, { width: `${processingProgress}%` }]} />
-                            <Text style={styles.progressText}>AI is working... {processingProgress}%</Text>
+                            <Text style={styles.progressText}>AI Processing... {processingProgress}%</Text>
                         </View>
                     )}
 
@@ -105,6 +100,7 @@ export const BulkUploader: React.FC = () => {
                                     key={img.id} 
                                     activeOpacity={0.9}
                                     onPress={() => setSelectedId(img.id)}
+                                    // FIXED: Card wrapper ki width aur margin ko responsive kiya
                                     style={[
                                         styles.cardWrapper, 
                                         isSelected && styles.cardSelected
@@ -112,34 +108,33 @@ export const BulkUploader: React.FC = () => {
                                 >
                                     <ImageCard 
                                         image={img} 
+                                        isSelected={isSelected} // Pass selection state
+                                        onSelect={() => setSelectedId(img.id)}
+                                        onRemove={() => {/* call store remove */}}
                                         onDownload={() => img.resultUri && handleDownload(img.resultUri)} 
                                     />
                                     
-                                    {/* Selection Tick Overlay */}
                                     {isSelected && (
                                         <View style={styles.tickOverlay}>
-                                            <Ionicons name="checkmark-circle" size={24} color="#C9A84C" />
+                                            <Ionicons name="checkmark-circle" size={22} color="#C9A84C" />
                                         </View>
                                     )}
                                 </TouchableOpacity>
                             );
                         })}
 
-                        {/* Add Photo Button as a Card */}
                         {!isProcessing && (
                             <TouchableOpacity onPress={pickImages} style={styles.addCard}>
-                                <Ionicons name="camera-outline" size={32} color="#333" />
+                                <Ionicons name="camera-outline" size={28} color="#444" />
                                 <Text style={styles.addText}>Add Photo</Text>
                             </TouchableOpacity>
                         )}
                     </View>
                 </View>
                 
-                {/* Space for bottom button */}
                 <View style={{ height: 120 }} />
             </ScrollView>
 
-            {/* --- FLOATING ACTION BUTTON --- */}
             {pendingImages.length > 0 && !isProcessing && (
                 <View style={styles.footer}>
                     <TouchableOpacity onPress={processAllImages} style={styles.enhanceBtn}>
@@ -166,297 +161,58 @@ const styles = StyleSheet.create({
     navIcons: { flexDirection: 'row', gap: 12 },
     iconBtn: { width: 40, height: 40, borderRadius: 20, backgroundColor: '#111', justifyContent: 'center', alignItems: 'center' },
     
-    scrollContent: { padding: 15 },
-    section: { marginBottom: 25 },
+    scrollContent: { padding: 12 },
+    section: { marginBottom: 20 },
     sectionHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 },
-    sectionTitle: { color: '#666', fontSize: 11, fontWeight: '900', letterSpacing: 1.5, textTransform: 'uppercase' },
+    sectionTitle: { color: '#666', fontSize: 10, fontWeight: '900', letterSpacing: 1.2 },
     clearBtn: { color: '#FF4444', fontSize: 12, fontWeight: '600' },
 
-    // Grid Fix (Overlapping hatane ke liye)
+    // ✅ FIXED GRID: Flex wrap aur responsive widths
     grid: { 
         flexDirection: 'row', 
         flexWrap: 'wrap', 
-        justifyContent: 'flex-start', // Use flex-start and gap for better spacing
-        marginHorizontal: -5 
+        justifyContent: 'space-between', 
     },
     cardWrapper: { 
-        width: Platform.OS === 'web' ? '23%' : '47%', // Web par 4 cards, Mobile par 2
-        margin: '1.5%',
-        aspectRatio: 4/3,
-        borderRadius: 15,
-        overflow: 'hidden',
-        borderWidth: 2,
-        borderColor: 'transparent',
-        backgroundColor: '#0A0A0A'
+        // FIXED: Remove fixed aspectRatio here because ImageCard handles it
+        width: Platform.OS === 'web' ? '24%' : '48%', 
+        marginBottom: 16,
+        borderRadius: 14,
+        position: 'relative',
     },
     cardSelected: {
-        borderColor: '#C9A84C',
+        // Selection style
     },
     tickOverlay: {
         position: 'absolute',
-        top: 8,
-        right: 8,
-        backgroundColor: 'rgba(0,0,0,0.6)',
+        top: 6,
+        left: 6, // Moved to left to avoid clashing with remove button
+        zIndex: 20,
+        backgroundColor: 'rgba(0,0,0,0.5)',
         borderRadius: 12,
-        padding: 2
     },
     addCard: { 
-        width: Platform.OS === 'web' ? '23%' : '47%',
-        margin: '1.5%',
-        aspectRatio: 4/3,
+        width: Platform.OS === 'web' ? '24%' : '48%',
+        aspectRatio: 16/9, // Match the ImageCard ratio
         backgroundColor: '#0A0A0A', 
-        borderRadius: 15, 
+        borderRadius: 12, 
         borderStyle: 'dashed', 
         borderWidth: 1.5, 
         borderColor: '#222', 
         justifyContent: 'center', 
-        alignItems: 'center' 
+        alignItems: 'center',
+        marginBottom: 16,
     },
-    addText: { color: '#444', fontSize: 11, marginTop: 8, fontWeight: '600' },
+    addText: { color: '#444', fontSize: 11, marginTop: 4, fontWeight: '600' },
 
-    // Progress Bar
     progressContainer: { height: 35, backgroundColor: '#0A0A0A', borderRadius: 10, marginBottom: 20, justifyContent: 'center', overflow: 'hidden', borderWidth: 1, borderColor: '#1A1A1A' },
-    progressBar: { position: 'absolute', left: 0, top: 0, bottom: 0, backgroundColor: 'rgba(201, 168, 76, 0.15)' },
+    progressBar: { position: 'absolute', left: 0, top: 0, bottom: 0, backgroundColor: 'rgba(201, 168, 76, 0.2)' },
     progressText: { textAlign: 'center', color: '#C9A84C', fontSize: 11, fontWeight: 'bold' },
 
     footer: { position: 'absolute', bottom: 30, left: 20, right: 20 },
     enhanceBtn: { 
         backgroundColor: '#C9A84C', height: 55, borderRadius: 18, flexDirection: 'row', 
-        justifyContent: 'center', alignItems: 'center', shadowColor: '#C9A84C', shadowOpacity: 0.4, shadowRadius: 15, elevation: 8 
+        justifyContent: 'center', alignItems: 'center', elevation: 8 
     },
     enhanceBtnText: { color: '#000', fontWeight: '900', fontSize: 15 },
 });
-
-
-// import React from 'react';
-// import { View, Text, TouchableOpacity, ScrollView, ActivityIndicator, useWindowDimensions, Platform } from 'react-native';
-// import { Ionicons } from '@expo/vector-icons';
-// import * as ImagePicker from 'expo-image-picker';
-// import { useStudioStore } from '@/stores/studioStore';
-// import { useImageProcessor } from '@/hooks/useImageProcessor';
-// import { BackgroundPicker } from './BackgroundPicker';
-// import { ImageCard } from './ImageCard';
-
-// export const BulkUploader: React.FC = () => {
-//     const { width } = useWindowDimensions();
-//     const { images, addImages, clearAllImages, isProcessing, processingProgress } = useStudioStore();
-//     const { processAllImages } = useImageProcessor();
-
-//     // ─── RESPONSIVE DESIGN LOGIC ───
-//     const isWeb = Platform.OS === 'web';
-//     // Web/iPad par max width 800px rakhenge taake design bhadda na lagay
-//     const containerStyle = isWeb && width > 800 ? {
-//         maxWidth: 800,
-//         alignSelf: 'center' as const,
-//         width: '100%'
-//     } : { flex: 1 };
-
-//     const pickImages = async () => {
-//         let result = await ImagePicker.launchImageLibraryAsync({
-//             mediaTypes: ImagePicker.MediaTypeOptions.Images,
-//             allowsMultipleSelection: true,
-//             quality: 1,
-//         });
-
-//         if (!result.canceled) {
-//             const newImages = result.assets.map((asset) => ({
-//                 id: `img_${Date.now()}_${Math.random()}`,
-//                 uri: asset.uri,
-//                 fileName: asset.fileName || `car.jpg`,
-//                 status: 'idle',
-//             }));
-//             addImages(newImages);
-//         }
-//     };
-
-//     const hasImages = images.length > 0;
-//     const pendingImages = images.filter(img => img.status === 'idle' || img.status === 'error');
-
-//     return (
-//         <ScrollView style={{ flex: 1, padding: 16 }}>
-//             {/* Wrapper for Responsiveness */}
-//             <View style={containerStyle}>
-                
-//                 {/* 1. Background Selection */}
-//                 {/* Note: Agar double background picker aa raha hai, toh check karo parent file mein bhi to nahi laga hua? */}
-//                 <BackgroundPicker />
-
-//                 <View style={{ height: 25 }} />
-
-//                 {/* 2. Upload Section Header */}
-//                 <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 15 }}>
-//                     <Text style={{ color: '#fff', fontSize: 18, fontWeight: 'bold' }}>CAR PHOTOS</Text>
-//                     {hasImages && !isProcessing && (
-//                         <TouchableOpacity onPress={() => clearAllImages()} style={{ padding: 5 }}>
-//                             <Text style={{ color: '#ff4444', fontSize: 14, fontWeight: '600' }}>Clear All</Text>
-//                         </TouchableOpacity>
-//                     )}
-//                 </View>
-
-//                 {/* 3. Progress Bar */}
-//                 {isProcessing && (
-//                     <View style={{ backgroundColor: '#222', borderRadius: 8, padding: 16, marginBottom: 15 }}>
-//                         <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 8 }}>
-//                             <Text style={{ color: '#C9A84C', fontSize: 14, fontWeight: '500' }}>AI Magic Processing...</Text>
-//                             <Text style={{ color: '#C9A84C', fontSize: 14, fontWeight: 'bold' }}>{processingProgress}%</Text>
-//                         </View>
-//                         <View style={{ height: 6, backgroundColor: '#333', borderRadius: 3, overflow: 'hidden' }}>
-//                             <View style={{ height: '100%', backgroundColor: '#C9A84C', width: `${processingProgress}%` }} />
-//                         </View>
-//                     </View>
-//                 )}
-
-//                 {/* 4. Images Grid */}
-//                 <View style={{ gap: 12 }}>
-//                     {images.map((img) => (
-//                         <ImageCard key={img.id} image={img} />
-//                     ))}
-
-//                     {!isProcessing && (
-//                         <TouchableOpacity 
-//                             onPress={pickImages}
-//                             style={{ 
-//                                 height: 120, 
-//                                 borderStyle: 'dashed', 
-//                                 borderWidth: 1.5, 
-//                                 borderColor: '#444', 
-//                                 borderRadius: 12, 
-//                                 justifyContent: 'center', 
-//                                 alignItems: 'center', 
-//                                 backgroundColor: '#1A1A1A' 
-//                             }}
-//                         >
-//                             <Ionicons name="camera-outline" size={32} color="#888" />
-//                             <Text style={{ color: '#888', marginTop: 10, fontSize: 16 }}>Tap to Add Car Photos</Text>
-//                         </TouchableOpacity>
-//                     )}
-//                 </View>
-
-//                 {/* 5. Fixed Enhance Button */}
-//                 {pendingImages.length > 0 && !isProcessing && (
-//                     <TouchableOpacity 
-//                         onPress={processAllImages}
-//                         style={{ 
-//                             backgroundColor: '#C9A84C', 
-//                             padding: 20, 
-//                             borderRadius: 12, 
-//                             marginTop: 25, 
-//                             marginBottom: 40,
-//                             flexDirection: 'row', 
-//                             justifyContent: 'center', 
-//                             alignItems: 'center', 
-//                             gap: 10,
-//                             elevation: 5,
-//                             shadowColor: '#C9A84C',
-//                             shadowOffset: { width: 0, height: 4 },
-//                             shadowOpacity: 0.3,
-//                             shadowRadius: 5,
-//                         }}
-//                     >
-//                         <Ionicons name="sparkles" size={24} color="#000" />
-//                         <Text style={{ color: '#000', fontWeight: 'bold', fontSize: 18 }}>
-//                             ENHANCE {pendingImages.length} {pendingImages.length === 1 ? 'PHOTO' : 'PHOTOS'}
-//                         </Text>
-//                     </TouchableOpacity>
-//                 )}
-//             </View>
-//         </ScrollView>
-//     );
-// };
-
-
-// // import React from 'react';
-// // import { View, Text, TouchableOpacity, ScrollView, ActivityIndicator } from 'react-native';
-// // import { Ionicons } from '@expo/vector-icons';
-// // import * as ImagePicker from 'expo-image-picker';
-// // import { useStudioStore } from '@/stores/studioStore';
-// // import { useImageProcessor } from '@/hooks/useImageProcessor';
-// // import { BackgroundPicker } from './BackgroundPicker';
-// // import { ImageCard } from './ImageCard';
-
-// // export const BulkUploader: React.FC = () => {
-// //     const { images, addImages, clearAllImages, isProcessing, processingProgress } = useStudioStore();
-// //     const { processAllImages } = useImageProcessor();
-
-// //     const pickImages = async () => {
-// //         let result = await ImagePicker.launchImageLibraryAsync({
-// //             mediaTypes: ImagePicker.MediaTypeOptions.Images,
-// //             allowsMultipleSelection: true,
-// //             quality: 1,
-// //         });
-
-// //         if (!result.canceled) {
-// //             const newImages = result.assets.map((asset) => ({
-// //                 id: `img_${Date.now()}_${Math.random()}`,
-// //                 uri: asset.uri,
-// //                 fileName: asset.fileName || `car.jpg`,
-// //                 status: 'idle',
-// //             }));
-// //             addImages(newImages);
-// //         }
-// //     };
-
-// //     const hasImages = images.length > 0;
-// //     const pendingImages = images.filter(img => img.status === 'idle' || img.status === 'error');
-
-// //     return (
-// //         <ScrollView style={{ flex: 1, padding: 16 }}>
-// //             {/* 1. Background Selection */}
-// //             <BackgroundPicker />
-
-// //             <View style={{ height: 25 }} />
-
-// //             {/* 2. Upload Section Header */}
-// //             <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 15 }}>
-// //                 <Text style={{ color: '#fff', fontSize: 16, fontWeight: 'bold' }}>CAR PHOTOS</Text>
-// //                 {hasImages && !isProcessing && (
-// //                     <TouchableOpacity onPress={() => clearAllImages()}>
-// //                         <Text style={{ color: '#ff4444', fontSize: 14 }}>Clear All</Text>
-// //                     </TouchableOpacity>
-// //                 )}
-// //             </View>
-
-// //             {/* 3. Progress Bar */}
-// //             {isProcessing && (
-// //                 <View style={{ backgroundColor: '#222', borderRadius: 8, padding: 12, marginBottom: 15 }}>
-// //                     <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 5 }}>
-// //                         <Text style={{ color: '#C9A84C', fontSize: 12 }}>Processing AI Magic...</Text>
-// //                         <Text style={{ color: '#C9A84C', fontSize: 12 }}>{processingProgress}%</Text>
-// //                     </View>
-// //                     <View style={{ height: 4, backgroundColor: '#333', borderRadius: 2 }}>
-// //                         <View style={{ height: 4, backgroundColor: '#C9A84C', borderRadius: 2, width: `${processingProgress}%` }} />
-// //                     </View>
-// //                 </View>
-// //             )}
-
-// //             {/* 4. Images Grid */}
-// //             <View style={{ gap: 10 }}>
-// //                 {images.map((img) => (
-// //                     <ImageCard key={img.id} image={img} />
-// //                 ))}
-
-// //                 {!isProcessing && (
-// //                     <TouchableOpacity 
-// //                         onPress={pickImages}
-// //                         style={{ height: 100, borderStyle: 'dashed', borderWidth: 1, borderColor: '#444', borderRadius: 12, justifyContent: 'center', alignItems: 'center', backgroundColor: '#111' }}
-// //                     >
-// //                         <Ionicons name="camera-outline" size={24} color="#666" />
-// //                         <Text style={{ color: '#666', marginTop: 8 }}>Add Photos</Text>
-// //                     </TouchableOpacity>
-// //                 )}
-// //             </View>
-
-// //             {/* 5. Fixed Enhance Button */}
-// //             {pendingImages.length > 0 && !isProcessing && (
-// //                 <TouchableOpacity 
-// //                     onPress={processAllImages}
-// //                     style={{ backgroundColor: '#C9A84C', padding: 18, borderRadius: 12, marginTop: 20, flexDirection: 'row', justifyContent: 'center', alignItems: 'center', gap: 10 }}
-// //                 >
-// //                     <Ionicons name="sparkles" size={20} color="#000" />
-// //                     <Text style={{ color: '#000', fontWeight: 'bold', fontSize: 16 }}>ENHANCE {pendingImages.length} PHOTOS</Text>
-// //                 </TouchableOpacity>
-// //             )}
-// //         </ScrollView>
-// //     );
-// // };
-
