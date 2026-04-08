@@ -183,13 +183,26 @@ const styles = StyleSheet.create({
         zIndex: 10,
     },
     footer: {
-        padding: 6,
-        flexDirection: 'row',
-        alignItems: 'center',
-        justifyContent: 'space-between',
-        backgroundColor: '#0D0D0D',
-        minHeight: 45,
-    },
+    // 1. Aapka asli color
+    backgroundColor: '#0D0D0D', 
+    
+    // 2. Aapki asli settings
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    minHeight: 45,
+    paddingHorizontal: 8,
+    paddingVertical: 6,
+
+    // 3. Layout fix (Portrait overlapping ke liye zaroori)
+    position: 'absolute',
+    bottom: 0,
+    left: 0,
+    right: 0,
+    borderBottomLeftRadius: 14,
+    borderBottomRightRadius: 14,
+},
+
     downloadBtn: {
         flexDirection: 'row',
         alignItems: 'center',
