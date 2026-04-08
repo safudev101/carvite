@@ -19,6 +19,7 @@ import { Colors } from "../../constants/colors";
 const { width, height } = Dimensions.get("window");
 const isWeb = Platform.OS === "web";
 const isWide = width > 900;
+const isMobileUI = screenWidth < 768;
 
 export default function HeroSection() {
     const router = useRouter();
@@ -87,7 +88,9 @@ export default function HeroSection() {
     ];
 
     return (
-        <View style={[styles.container, { backgroundColor: isDark ? Colors.carbon950 : "#F8F9FB" }]}>
+        <View style={[styles.container, {
+            backgroundColor: isDark ? Colors.carbon950 : "#F8F9FB" }, 
+            minHeight: isWeb ? "90vh" : isMobileUI ? screenHeight * 0.95 : screenHeight * 0.88 }]}>
             {/* Background image with gradient overlay */}
             <Animated.View
                 style={[styles.bgImage, { opacity: imageOpacity, transform: [{ scale: imageScale }] }]}
@@ -124,16 +127,17 @@ export default function HeroSection() {
             />
 
             {/* Main content */}
-            <View style={[styles.content, isWide && styles.contentWide]}>
+            <View style={[styles.content, isWide && styles.contentWide, isMobileUI && { paddingTop: 60, paddingHorizontal: 20 }]}>
                 {/* Tagline badge */}
                 <Animated.View
                     style={[
                         styles.taglineBadge,
                         { opacity: taglineOpacity, transform: [{ translateY: taglineY }] },
+                        isMobileUI && { alignSelf: 'center', marginBottom: 16 }
                     ]}
                 >
                     <View style={styles.taglineDot} />
-                    <Text style={styles.taglineText}>AI-Powered Automotive Imaging</Text>
+                    <Text style={[styles.taglineText, isMobileUI && { fontSize: 10 }]}>AI-Powered Automotive Imaging</Text>
                 </Animated.View>
 
                 {/* Main headline */}
