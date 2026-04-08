@@ -6,7 +6,7 @@ import {
     StyleSheet,
     Animated,
     Platform,
-    Header,
+    Dimensions, // Added missing import
 } from "react-native";
 import { useRouter, usePathname } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
@@ -19,7 +19,6 @@ interface HeaderProps {
     showNav?: boolean;
 }
 
-// Mobile check ke liye width le lo
 const { width: screenWidth } = Dimensions.get('window');
 const isMobile = screenWidth < 768;
 
@@ -63,7 +62,6 @@ export default function Header({ transparent = false, showNav = true }: HeaderPr
                     borderBottomColor: transparent ? "transparent" : borderColor,
                     transform: [{ translateY: slideY }],
                     opacity,
-                    // Mobile ke liye padding kam kar di
                     paddingHorizontal: isMobile ? 12 : 24,
                 },
             ]}
@@ -73,9 +71,8 @@ export default function Header({ transparent = false, showNav = true }: HeaderPr
                 style={styles.logo}
                 onPress={() => router.push("/")}
                 activeOpacity={0.8}
-                  >
-                // ✅ Corrected Line
-            <View style={[styles.logoMark, isMobile && { width: 30, height: 30 }]}>
+            >
+                <View style={[styles.logoMark, isMobile && { width: 30, height: 30 }]}>
                     <Text style={[styles.logoMarkText, isMobile && { fontSize: 11 }]}>AV</Text>
                 </View>
                 <View>
@@ -113,36 +110,34 @@ export default function Header({ transparent = false, showNav = true }: HeaderPr
                 </TouchableOpacity>
 
                 {user ? (
-                    <>
-                        <TouchableOpacity
-                            style={styles.dashBtn}, isMobile && { paddingHorizontal: 12, paddingVertical: 7 }]}
-                            onPress={() => router.push("/(dashboard)")}
-                            activeOpacity={0.8}
-                        >
-                            <Text style={styles.dashBtnText}>Dashboard</Text>
-                        </TouchableOpacity>
-                    </>
+                    <TouchableOpacity
+                        style={[styles.dashBtn, isMobile && { paddingHorizontal: 12, paddingVertical: 7 }]}
+                        onPress={() => router.push("/(dashboard)")}
+                        activeOpacity={0.8}
+                    >
+                        <Text style={styles.dashBtnText}>Dashboard</Text>
+                    </TouchableOpacity>
                 ) : (
                     <>
-                        {/* Mobile par Sign In hide kar sakte hain ya chota */}
                         {!isMobile && (
+                            <TouchableOpacity
+                                onPress={() => router.push("/(auth)/login")}
+                                style={styles.loginBtn}
+                                activeOpacity={0.7}
+                            >
+                                <Text style={[styles.loginBtnText, { color: isDark ? Colors.silver300 : Colors.silver500 }]}>
+                                    Sign In
+                                </Text>
+                            </TouchableOpacity> 
+                        )}
                         <TouchableOpacity
-                            onPress={() => router.push("/(auth)/login")}
-                            style={styles.loginBtn}
-                            activeOpacity={0.7}
-                        >
-                            <Text style={[styles.loginBtnText, { color: isDark ? Colors.silver300 : Colors.silver500 }]}>
-                                Sign In
-                            </Text>
-                        </TouchableOpacity> 
-                    )}
-                        <TouchableOpacity
-                            style={styles.ctaBtn}, isMobile && { paddingHorizontal: 12, paddingVertical: 7 }]}
+                            style={[styles.ctaBtn, isMobile && { paddingHorizontal: 12, paddingVertical: 7 }]}
                             onPress={() => router.push("/(auth)/signup")}
                             activeOpacity={0.8}
                         >
                             <Text style={[styles.ctaBtnText, isMobile && { fontSize: 12 }]}>
                                 {isMobile ? "Start" : "Get Started"}
+                            </Text>
                         </TouchableOpacity>
                     </>
                 )}
@@ -157,7 +152,6 @@ const styles = StyleSheet.create({
         flexDirection: "row",
         alignItems: "center",
         justifyContent: "space-between",
-        paddingHorizontal: 24,
         paddingVertical: 14,
         borderBottomWidth: StyleSheet.hairlineWidth,
         zIndex: 100,
@@ -213,7 +207,6 @@ const styles = StyleSheet.create({
     actions: {
         flexDirection: "row",
         alignItems: "center",
-        gap: 12,
     },
     iconBtn: {
         width: 36,
