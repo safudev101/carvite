@@ -66,10 +66,8 @@ export const ImageCard: React.FC<ImageCardProps> = ({
                 styles.cardWrapper,
                 {
                     transform: [{ scale: scaleAnim }],
-                    // ✅ FIXED: Mobile par properly width allocate hogi
-                    width: Platform.OS === 'web' 
-                        ? (isMobile ? (screenWidth - 40) : 260) 
-                        : (screenWidth / 2) - 16,
+                    // ✅ FIXED: Hardcoded widths hata di hain. Ab ye hamesha parent ko perfectly fill karega.
+                    width: '100%', 
                 }
             ]}
         >
@@ -80,6 +78,7 @@ export const ImageCard: React.FC<ImageCardProps> = ({
                 style={[
                     styles.pressableCard,
                     {
+                        // ✅ Yehi akela border responsible hai selection dikhane ke liye
                         borderColor: isSelected ? '#C9A84C' : 'rgba(255,255,255,0.08)',
                         shadowColor: isSelected ? '#C9A84C' : '#000',
                     }
@@ -138,8 +137,8 @@ export const ImageCard: React.FC<ImageCardProps> = ({
 
 const styles = StyleSheet.create({
     cardWrapper: {
-        marginBottom: 12,
-        marginHorizontal: 6,
+        // ✅ FIXED: Margins hata diye taake grid layout mein shrining na ho
+        width: '100%',
     },
     pressableCard: {
         borderRadius: 12,
@@ -150,7 +149,6 @@ const styles = StyleSheet.create({
     },
     imageContainer: {
         width: '100%',
-        // ✅ FIXED: 16/9 widescreen car shots ke liye best hai
         aspectRatio: 16 / 9,
         backgroundColor: '#0A0A0A',
         position: 'relative',
@@ -183,26 +181,20 @@ const styles = StyleSheet.create({
         zIndex: 10,
     },
     footer: {
-    // 1. Aapka asli color
-    backgroundColor: '#0D0D0D', 
-    
-    // 2. Aapki asli settings
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    minHeight: 45,
-    paddingHorizontal: 8,
-    paddingVertical: 6,
-
-    // 3. Layout fix (Portrait overlapping ke liye zaroori)
-    position: 'absolute',
-    bottom: 0,
-    left: 0,
-    right: 0,
-    borderBottomLeftRadius: 14,
-    borderBottomRightRadius: 14,
-},
-
+        backgroundColor: '#0D0D0D', 
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+        minHeight: 45,
+        paddingHorizontal: 8,
+        paddingVertical: 6,
+        position: 'absolute',
+        bottom: 0,
+        left: 0,
+        right: 0,
+        borderBottomLeftRadius: 12,
+        borderBottomRightRadius: 12,
+    },
     downloadBtn: {
         flexDirection: 'row',
         alignItems: 'center',
