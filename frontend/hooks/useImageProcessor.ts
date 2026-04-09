@@ -1,101 +1,103 @@
-import { useCallback } from "react";
-import { useStudioStore } from "@/stores/studioStore";
-import { useAuthStore } from "@/stores/authStore";
-import { processSingleImage as processCarImage } from "@/services/aiProcessing";
+import { useStudioStore } from '@/stores/studioStore';
+import { useGalleryStore } from '@/stores/galleryStore';
+import { processSingleImage } from '@/services/aiProcessing';
 
-// 🌟 Agar aapka koi useGalleryStore hai (Gallery Tab ke liye), toh yahan import karein:
-// import { useGalleryStore } from "@/stores/galleryStore";
+export const useImageProcessor = () => {
+    const { addImageToGallery } = useGalleryStore();
 
-export function useImageProcessor() {
-    const studioStore = useStudioStore();
-    const { user } = useAuthStore();
-    
-    // const addImageToGallery = useGalleryStore(state => state.addImage); // 🌟 (Gallery ke liye uncomment karein)
+    /**
+     * EK SINGLE IMAGE KO PROCESS KARNE KA LOGIC
+     * @param imageId - Jis image ko process karna hai
+     * @param isBgRemoval - Agar true hai toh transparent PNG banayega, warna background replace karega
+     */
+    const processSingleImageAction = async (imageId: string, isBgRemoval: boolean) => {
+        const { 
+            images, 
+            updateImageStatus, 
+            updateImageResult, 
+            setIsProcessing, 
+            setProcessingProgress, 
+            selectedBackground 
+        } = useStudioStore.getState();
 
-    // 👇 NAYA FUNCTION: Sirf Ek Image Ko Process Karne Ke Liye
-    const processSingleImageAction = useCallback(async (imageId: string, removeBgOnly: boolean = false) => {
-        const image = studioStore.images.find((img) => img.id === imageId);
+        const targetImage = images.find(img => img.id === imageId);
         
-        if (!image || !user || image.status === 'processing') return;
+        // Agar image na milay ya pehle se process ho rahi ho toh ruk jao
+        if (!targetImage || targetImage.status === 'processing') return;
 
-        const background = removeBgOnly ? null : studioStore.selectedBackground;
+        setIsProcessing(true);
+        setProcessingProgress(5); // Initial kick
+        updateImageStatus(imageId, 'processing');
 
-        // UI Updates: Processing Start
-        studioStore.setProcessing(true);
-        studioStore.setImageStatus(imageId, "processing");
-        studioStore.setProgress(10); // Initial 10%
-
-        // Smooth Fake Progress Bar Logic
-        let currentProgress = 10;
-        const progressInterval = setInterval(() => {
-            currentProgress += Math.floor(Math.random() * 10) + 5; // 5 se 15% random jump
-            if (currentProgress > 90) currentProgress = 90; // 90% pe ruka rahega jab tak result na aye
-            studioStore.setProgress(currentProgress);
-        }, 1000);
+        let progressInterval: NodeJS.Timeout;
 
         try {
-            const resultUri = await processCarImage(
-                image.uri,
-                image.fileName ?? "car.jpg",
-                {
-                    bgUrl: background?.fullUrl || undefined,
-                    bgId: background?.category !== 'Custom' ? background?.id : undefined,
-                    outputFormat: "PNG", 
+            // Options set karein backend ke liye
+            const opts = {
+                // Agar "Remove BG" dabaya hai toh background ki details nahi bhejni
+                bgUrl: isBgRemoval ? undefined : selectedBackground?.url,
+                bg_color: isBgRemoval ? undefined : selectedBackground?.color,
+                // Transparent result ke liye PNG format lazmi hai
+                outputFormat: isBgRemoval ? "PNG" : "JPG" as any
+            };
+
+            // 🌟 Smooth Progress Bar Logic (90% tak khud jaye gi)
+            let currentProgress = 10;
+            progressInterval = setInterval(() => {
+                if (currentProgress < 90) {
+                    currentProgress += Math.random() * 5;
+                    setProcessingProgress(Math.min(Math.floor(currentProgress), 90));
                 }
-            );
+            }, 800);
 
-            clearInterval(progressInterval); // Timer khatam
-
-            if (!resultUri) throw new Error("API failed");
+            // API Call - Backend ko image bhejna
+            const resultUri = await processSingleImage(targetImage.uri, targetImage.fileName, opts);
             
-            // UI Updates: Processing Complete
-            studioStore.setProgress(100);
-            studioStore.setImageStatus(imageId, "done", resultUri);
-
-            // 🌟 FIX: GALLERY TAB MEIN SAVE KARNA 🌟
-            // Yahan aap gallery store ko result bhej do taake wahan nazar aaye
-            // if (addImageToGallery) {
-            //     addImageToGallery({ 
-            //         id: `gal_${Date.now()}`, 
-            //         uri: resultUri, 
-            //         createdAt: new Date().toISOString() 
-            //     });
-            // }
-
-        } catch (err: any) {
+            // Interval khatam karo aur progress 100 kardo
             clearInterval(progressInterval);
-            console.error("AI Error:", err.message);
-            studioStore.setImageStatus(imageId, "error", undefined, err.message);
+            setProcessingProgress(100);
+
+            // Result update karo UI mein
+            updateImageResult(imageId, resultUri);
+            updateImageStatus(imageId, 'done');
+
+            // 🌟 GALLERY INTEGRATION
+            // Image tayyar hotay hi usay gallery store mein daal do
+            addImageToGallery({
+                id: `gal_${Date.now()}_${Math.random().toString(36).substr(2, 5)}`,
+                uri: resultUri,
+                originalUri: targetImage.uri,
+                type: isBgRemoval ? 'transparent' : 'enhanced',
+                createdAt: new Date().toISOString()
+            });
+
+        } catch (error: any) {
+            if (progressInterval!) clearInterval(progressInterval);
+            updateImageStatus(imageId, 'error');
+            console.error("[Processor] Error processing image:", error.message);
         } finally {
-            // Thori der baad dashboard ko normal state mein wapas lana
+            // Thora ruk kar progress bar aur loader reset karo
             setTimeout(() => {
-                studioStore.setProcessing(false);
-                studioStore.setProgress(0);
-            }, 1200);
+                setIsProcessing(false);
+                setProcessingProgress(0);
+            }, 1000);
         }
-    }, [studioStore, user]);
+    };
 
-    // 👇 PURANA FUNCTION: Agar kabhi ek sath sab karni hon (Bulk mode)
-    const processAllImages = useCallback(async (removeBgOnly: boolean = false) => {
-        const idleImages = studioStore.images.filter((img) => img.status === "idle" || img.status === "error");
-        if (idleImages.length === 0) return;
+    /**
+     * BATCH PROCESSING (Agar saari images ek sath karni hon)
+     */
+    const processAllImages = async (isBgRemoval: boolean = false) => {
+        const { images } = useStudioStore.getState();
+        const pendingImages = images.filter(img => img.status === 'idle' || img.status === 'error');
 
-        studioStore.setProcessing(true);
-        studioStore.setProgress(0);
-
-        for (let i = 0; i < idleImages.length; i++) {
-            await processSingleImageAction(idleImages[i].id, removeBgOnly);
-            // Bulk mein progress per image update hogi
-            studioStore.setProgress(Math.round(((i + 1) / idleImages.length) * 100));
+        for (const img of pendingImages) {
+            await processSingleImageAction(img.id, isBgRemoval);
         }
-
-        studioStore.setProcessing(false);
-    }, [studioStore, processSingleImageAction]);
+    };
 
     return { 
-        processAllImages, 
-        processSingleImageAction, // ✅ Ye lazmi export hona chahiye BulkUploader ke liye
-        isProcessing: studioStore.isProcessing,
-        processingProgress: studioStore.processingProgress 
+        processSingleImageAction, 
+        processAllImages 
     };
-}
+};
