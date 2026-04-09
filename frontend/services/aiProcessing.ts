@@ -1,14 +1,8 @@
 import * as FileSystem from 'expo-file-system';
 import { Platform } from 'react-native';
 
-// API Configuration
-// Sirf is URL ko change karein. 
-// Agar HuggingFace use karna hai toh switch ko false kar dein.
-const CONFIG = {
-    USE_CARCLINCH: true, 
-    ACTIVE_URL: "https://your-carclinch-api.com", // Apna hosted URL yahan dalein
-    FALLBACK_URL: "https://khan19970-carvite.hf.space"
-};
+// DIRECT URL: Ab .env ki tension khatam
+const API_BASE = "https://khan19970-carvite.hf.space";
 
 export interface ProcessOptions {
     bgId?: string;
@@ -47,70 +41,62 @@ async function buildFormData(imageUri: string, fileName: string, opts: ProcessOp
 }
 
 export async function processSingleImage(
-    imageUri: string, 
-    fileName: string, 
-    options?: ProcessingOptions
-) {
-    const formData = new FormData();
-    const bgUri = options?.bgUrl;
+    imageUri: string,
+    fileName: string,
+    opts: ProcessOptions = {}
+): Promise<string> {
+    console.log("[AI] Connecting to Hugging Face:", API_BASE);
     
-    // Image fetch logic for Web and Mobile
-    let imageBlob: any;
-    if (Platform.OS === 'web') {
-        const res = await fetch(imageUri);
-        imageBlob = await res.blob();
-    } else {
-        // React Native specific format
-        imageBlob = { uri: imageUri, name: fileName, type: 'image/jpeg' } as any;
-    }
-
-    // Determine current API base URL
-    const baseUrl = CONFIG.USE_CARCLINCH ? CONFIG.ACTIVE_URL : CONFIG.FALLBACK_URL;
-
+    const form = await buildFormData(imageUri, fileName, opts);
+    
     try {
-        if (CONFIG.USE_CARCLINCH) {
-            // --- CarClinch API Logic ---
-            const endpoint = bgUri ? '/replace-bg' : '/remove-bg';
-            
-            if (bgUri) {
-                // Background Replace Mode
-                formData.append('car_image', imageBlob);
-                
-                // Background fetch
-                const bgRes = await fetch(bgUri);
-                const bgBlob = await bgRes.blob();
-                formData.append('bg_image', bgBlob, 'background.jpg');
-            } else {
-                // Simple Remove Mode
-                formData.append('image', imageBlob);
-            }
+        const res = await fetch(`${API_BASE}/process`, {
+            method: 'POST',
+            body: form,
+            // 60 seconds wait taake model "awake" ho jaye
+            signal: AbortSignal.timeout(60000) 
+        });
 
-            const response = await fetch(`${baseUrl}${endpoint}`, {
-                method: 'POST',
-                body: formData,
-            });
+        if (!res.ok) {
+            const errorText = await res.text();
+            console.error(`[AI] Backend Error (${res.status}):`, errorText);
+            throw new Error(`AI Backend returned ${res.status}`);
+        }
 
-            if (!response.ok) throw new Error(`CarClinch Error: ${response.status}`);
-            
-            const resultBlob = await response.blob();
-            return URL.createObjectURL(resultBlob);
+        const blob = await res.blob();
+        if (blob.size === 0) throw new Error("Empty response from AI");
 
+        console.log(`[AI] Success! Received Image: ${blob.size} bytes`);
+
+        if (Platform.OS === 'web') {
+            return URL.createObjectURL(blob);
         } else {
-            // --- Old HuggingFace Fallback ---
-            formData.append('image', imageBlob);
-            if (bgUri) formData.append('bg_url', bgUri); 
-            
-            const response = await fetch(`${baseUrl}/process`, {
-                method: 'POST',
-                body: formData,
+            const timestamp = Date.now();
+            // Using PNG as base since our model returns PNG for best quality
+            const localPath = `${FileSystem.cacheDirectory}processed_${timestamp}.png`;
+            const base64 = await blobToBase64(blob);
+            await FileSystem.writeAsStringAsync(localPath, base64, { 
+                encoding: FileSystem.EncodingType.Base64 
             });
-
-            if (!response.ok) throw new Error('HuggingFace Error');
-            const resultBlob = await response.blob();
-            return URL.createObjectURL(resultBlob);
+            return localPath;
         }
     } catch (error: any) {
-        console.error("Processing API Error:", error.message);
+        if (error.name === 'TimeoutError') {
+            console.error("[AI] Hugging Face is taking too long to wake up.");
+        }
+        console.error("[AI] Error:", error.message);
         throw error;
     }
+}
+
+function blobToBase64(blob: Blob): Promise<string> {
+    return new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onloadend = () => {
+            const base64String = reader.result as string;
+            resolve(base64String.split(',')[1]); 
+        };
+        reader.onerror = reject;
+        reader.readAsDataURL(blob);
+    });
 }
