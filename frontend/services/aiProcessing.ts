@@ -39,7 +39,7 @@ export async function processSingleImage(
     const form = await buildFormData(imageUri, fileName, opts);
 
     try {
-        const res = await fetch(`${API_BASE}`, {
+        const res = await fetch(`${API_BASE}/upload-image`, {
             method: 'POST',
             body: form,
             signal: AbortSignal.timeout(90000)
