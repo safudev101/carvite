@@ -29,8 +29,8 @@ const isMobile = screenWidth < 768;
 const statusConfig: Record<ImageStatus, { label: string; variant: 'neutral' | 'gold' | 'success' | 'error' | 'info' }> = {
     idle: { label: 'Queued', variant: 'neutral' },
     uploading: { label: 'Uploading', variant: 'info' },
-    processing: { label: 'Processing', variant: 'gold' },
-    done: { label: 'Done', variant: 'success' },
+    processing: { label: 'AI Processing', variant: 'gold' },
+    done: { label: 'Ready', variant: 'success' },
     error: { label: 'Failed', variant: 'error' },
 };
 
@@ -44,33 +44,19 @@ export const ImageCard: React.FC<ImageCardProps> = ({
     const scaleAnim = useRef(new Animated.Value(1)).current;
 
     const handlePressIn = () => {
-        Animated.spring(scaleAnim, {
-            toValue: 0.97,
-            useNativeDriver: true,
-        }).start();
+        Animated.spring(scaleAnim, { toValue: 0.98, useNativeDriver: true }).start();
     };
 
     const handlePressOut = () => {
-        Animated.spring(scaleAnim, {
-            toValue: 1,
-            useNativeDriver: true,
-        }).start();
+        Animated.spring(scaleAnim, { toValue: 1, useNativeDriver: true }).start();
     };
 
     const status = statusConfig[image.status];
     const isProcessing = image.status === 'processing' || image.status === 'uploading';
+    const isDone = image.status === 'done';
 
     return (
-        <Animated.View
-            style={[
-                styles.cardWrapper,
-                {
-                    transform: [{ scale: scaleAnim }],
-                    // ✅ FIXED: Hardcoded widths hata di hain. Ab ye hamesha parent ko perfectly fill karega.
-                    width: '100%', 
-                }
-            ]}
-        >
+        <Animated.View style={[styles.cardWrapper, { transform: [{ scale: scaleAnim }] }]}>
             <Pressable
                 onPress={onSelect}
                 onPressIn={handlePressIn}
@@ -78,56 +64,59 @@ export const ImageCard: React.FC<ImageCardProps> = ({
                 style={[
                     styles.pressableCard,
                     {
-                        // ✅ Yehi akela border responsible hai selection dikhane ke liye
-                        borderColor: isSelected ? '#C9A84C' : 'rgba(255,255,255,0.08)',
-                        shadowColor: isSelected ? '#C9A84C' : '#000',
+                        borderColor: isSelected ? '#C9A84C' : isDone ? 'rgba(201, 168, 76, 0.3)' : 'rgba(255,255,255,0.1)',
+                        borderWidth: isSelected || isDone ? 2 : 1,
                     }
                 ]}
             >
-                {/* Image Preview */}
                 <View style={styles.imageContainer}>
                     <Image
                         source={{ uri: image.resultUri || image.uri }}
                         style={StyleSheet.absoluteFill}
-                        // ✅ FIXED: 'contain' taake car kabhi na kategi
-                        resizeMode="contain"
+                        resizeMode="cover"
                     />
 
+                    {/* Processing Overlay */}
                     {isProcessing && (
                         <View style={styles.overlay}>
-                            <Spinner size={isMobile ? 22 : 28} color="#C9A84C" />
-                            <Text style={[styles.processingText, { fontSize: isMobile ? 9 : 11 }]}>
-                                {image.status === 'uploading' ? 'Uploading…' : 'Processing AI…'}
+                            <Spinner size={24} color="#C9A84C" />
+                            <Text style={styles.processingText}>
+                                {image.status === 'uploading' ? 'UPLOADING...' : 'AI WORKING...'}
                             </Text>
                         </View>
                     )}
 
+                    {/* Remove Button - Only if not processing */}
                     {!isProcessing && (
-                        <TouchableOpacity onPress={onRemove} style={styles.removeBtn}>
-                            <Ionicons name="close" size={isMobile ? 12 : 14} color="#fff" />
+                        <TouchableOpacity 
+                            onPress={(e) => {
+                                e.stopPropagation(); // Card selection trigger na ho
+                                onRemove();
+                            }} 
+                            style={styles.removeBtn}
+                            hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+                        >
+                            <Ionicons name="close" size={16} color="#fff" />
                         </TouchableOpacity>
                     )}
                 </View>
 
-                {/* Footer */}
+                {/* Footer Section */}
                 <View style={styles.footer}>
-                    <View style={{ flex: 1, marginRight: 4 }}>
-                        <Badge label={status.label} variant={status.variant} size="sm" />
-                    </View>
-
-                    {image.status === 'done' && (
+                    <Badge label={status.label} variant={status.variant} size="sm" />
+                    
+                    {isDone && (
                         <TouchableOpacity 
                             onPress={onDownload}
                             style={styles.downloadBtn}
-                            activeOpacity={0.7}
                         >
-                            <Ionicons name="cloud-download" size={isMobile ? 14 : 18} color="#000" />
-                            <Text style={[styles.downloadText, { fontSize: isMobile ? 9 : 10 }]}>SAVE</Text>
+                            <Ionicons name="download" size={14} color="#000" />
+                            <Text style={styles.downloadText}>SAVE</Text>
                         </TouchableOpacity>
                     )}
 
                     {image.status === 'error' && (
-                        <Ionicons name="alert-circle" size={20} color="#EF4444" />
+                        <Ionicons name="alert-circle" size={18} color="#EF4444" />
                     )}
                 </View>
             </Pressable>
@@ -137,75 +126,72 @@ export const ImageCard: React.FC<ImageCardProps> = ({
 
 const styles = StyleSheet.create({
     cardWrapper: {
-        // ✅ FIXED: Margins hata diye taake grid layout mein shrining na ho
         width: '100%',
+        marginBottom: 8,
     },
     pressableCard: {
-        borderRadius: 12,
+        borderRadius: 14,
         overflow: 'hidden',
-        borderWidth: 1.5,
         backgroundColor: '#111',
-        elevation: 3,
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 4 },
+        shadowOpacity: 0.3,
+        shadowRadius: 5,
+        elevation: 5,
     },
     imageContainer: {
         width: '100%',
-        aspectRatio: 16 / 9,
-        backgroundColor: '#0A0A0A',
-        position: 'relative',
-        overflow: 'hidden'
+        aspectRatio: 4 / 3, // Cars ke liye 4:3 better lagta hai grid mein
+        backgroundColor: '#050505',
     },
     overlay: {
         ...StyleSheet.absoluteFillObject,
-        backgroundColor: 'rgba(0,0,0,0.75)',
+        backgroundColor: 'rgba(0,0,0,0.8)',
         alignItems: 'center',
         justifyContent: 'center',
-        padding: 4,
     },
     processingText: {
         color: '#C9A84C',
-        marginTop: 6,
-        fontWeight: 'bold',
-        textTransform: 'uppercase',
-        textAlign: 'center',
+        marginTop: 8,
+        fontSize: 9,
+        fontWeight: '900',
+        letterSpacing: 1,
     },
     removeBtn: {
         position: 'absolute',
-        top: 6,
-        right: 6,
-        width: 22,
-        height: 22,
-        borderRadius: 11,
-        backgroundColor: 'rgba(0,0,0,0.7)',
+        top: 8,
+        right: 8,
+        width: 26,
+        height: 26,
+        borderRadius: 13,
+        backgroundColor: 'rgba(255, 68, 68, 0.9)',
         alignItems: 'center',
         justifyContent: 'center',
-        zIndex: 10,
+        zIndex: 20,
     },
     footer: {
-        backgroundColor: '#0D0D0D', 
         flexDirection: 'row',
         alignItems: 'center',
         justifyContent: 'space-between',
-        minHeight: 45,
-        paddingHorizontal: 8,
-        paddingVertical: 6,
-        position: 'absolute',
-        bottom: 0,
-        left: 0,
-        right: 0,
-        borderBottomLeftRadius: 12,
-        borderBottomRightRadius: 12,
+        paddingHorizontal: 10,
+        paddingVertical: 8,
+        backgroundColor: '#161616',
+        borderTopWidth: 1,
+        borderTopColor: 'rgba(255,255,255,0.05)',
     },
     downloadBtn: {
         flexDirection: 'row',
         alignItems: 'center',
         backgroundColor: '#C9A84C',
-        paddingHorizontal: 8,
+        paddingHorizontal: 10,
         paddingVertical: 4,
-        borderRadius: 6,
-        gap: 3,
+        borderRadius: 8,
+        gap: 4,
     },
     downloadText: {
         color: '#000',
-        fontWeight: 'bold',
+        fontWeight: '900',
+        fontSize: 10,
     }
 });
+
