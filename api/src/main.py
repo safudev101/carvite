@@ -5,6 +5,8 @@ from pathlib import Path
 import sys
 import io
 import requests as http_requests
+import asyncio
+import time
 
 root_dir = Path(__file__).resolve().parent.parent.parent
 sys.path.append(str(root_dir))
@@ -39,7 +41,7 @@ def get_dirs() -> tuple[Path, Path, Path]:
 
 @app.get("/")
 def read_root():
-    return {"Hello": "World"}
+    return {"status": "online", "message": "CarVite AI Engine is running"}
 
 
 @app.post("/process")
@@ -48,6 +50,7 @@ def upload_image(
     image: UploadFile = File(...),
     bg_color: str = Form(None),
     bg_url: str = Form(None),
+    action: str = Form("replace") # ✅ Naya parameter: 'remove' ya 'replace'
 ):
     if not (image.content_type and image.content_type.startswith("image/")):
         raise HTTPException(status_code=400, detail="File is not an image.")
@@ -59,7 +62,9 @@ def upload_image(
 
     _, input_dir, output_dir = get_dirs()
 
-    input_path = input_dir / original_name.name
+    # Time stamp taake filename clash na ho
+    unique_filename = f"{int(time.time())}_{original_name.name}"
+    input_path = input_dir / unique_filename
     output_name = f"{original_name.stem}_processed.png"
     output_path = output_dir / output_name
 
@@ -69,35 +74,50 @@ def upload_image(
     finally:
         image.file.close()
 
-    # Background removal
-    output_img, _ = processor.process_image(
-        str(input_path), model_name="isnet-general-use"
-    )
-    output_img = output_img.convert("RGBA")
+    try:
+        # 1. Background Removal (Har soorat mein hogi foreground nikalne k liye)
+        output_img, _ = processor.process_image(
+            str(input_path), model_name="isnet-general-use"
+        )
+        output_img = output_img.convert("RGBA")
 
-    # Apply background if provided
-    if bg_url:
-        try:
-            bg_response = http_requests.get(bg_url, timeout=15)
-            bg_response.raise_for_status()
-            bg_img = Image.open(io.BytesIO(bg_response.content)).convert("RGBA")
-            bg_img = bg_img.resize(output_img.size, Image.LANCZOS)
-            bg_img.paste(output_img, (0, 0), output_img)
-            output_img = bg_img
-        except Exception as e:
-            raise HTTPException(status_code=400, detail=f"Failed to fetch bg_url: {str(e)}")
+        # 2. LOGIC: Agar user ne sirf 'remove' manga hai toh transparent PNG return karo
+        if action == "remove":
+            output_img.save(output_path, format="PNG")
+            return FileResponse(str(output_path), media_type="image/png")
 
-    elif bg_color:
-        try:
-            bg_img = Image.new("RGBA", output_img.size, bg_color)
-            bg_img.paste(output_img, (0, 0), output_img)
-            output_img = bg_img
-        except Exception as e:
-            raise HTTPException(status_code=400, detail=f"Invalid bg_color: {str(e)}")
+        # 3. Agar 'replace' karna hai (Enhance logic)
+        final_img = output_img # Default fallback
 
-    output_img.save(output_path, format="PNG")
+        if bg_url:
+            try:
+                bg_response = http_requests.get(bg_url, timeout=15)
+                bg_response.raise_for_status()
+                bg_img = Image.open(io.BytesIO(bg_response.content)).convert("RGBA")
+                bg_img = bg_img.resize(output_img.size, Image.LANCZOS)
+                
+                # Nayi image banao aur uspar background aur phir car paste karo
+                combined = Image.new("RGBA", output_img.size)
+                combined.paste(bg_img, (0, 0))
+                combined.paste(output_img, (0, 0), output_img) # Alpha mask use karna zaroori hai
+                final_img = combined
+            except Exception as e:
+                print(f"Failed to apply BG URL: {e}")
 
-    return FileResponse(str(output_path), media_type="image/png")
+        elif bg_color:
+            try:
+                bg_img = Image.new("RGBA", output_img.size, bg_color)
+                bg_img.paste(output_img, (0, 0), output_img)
+                final_img = bg_img
+            except Exception as e:
+                print(f"Failed to apply BG Color: {e}")
+
+        # Final save
+        final_img.save(output_path, format="PNG")
+        return FileResponse(str(output_path), media_type="image/png")
+
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"AI Processing Error: {str(e)}")
 
 
 @app.post("/replace-background")
@@ -163,9 +183,6 @@ def replace_background_endpoint(
 
     return FileResponse(str(output_path), media_type="image/png")
 
-
-import asyncio
-import time
 
 @app.post("/replace-background-all-models")
 async def replace_background_all_models(
