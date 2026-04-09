@@ -7,51 +7,53 @@ export interface ProcessOptions {
     bgUrl?: string;
     bgId?: string;
     bg_color?: string;
-    outputFormat?: "PNG" | "WEBP" | "JPG"; // Naya option
+    action: 'remove' | 'replace'; // ✅ Mandatory field for new logic
+    outputFormat?: "PNG" | "WEBP" | "JPG";
 }
 
 async function buildFormData(imageUri: string, fileName: string, opts: ProcessOptions): Promise<{ form: FormData; endpoint: string }> {
     const form = new FormData();
-    let endpoint = "/upload-image"; // Default removal endpoint
+    let endpoint = "/process"; // ✅ Standardized to /process
 
-    // Main Car Image
+    // 1. Main Car Image
     const carImageData = Platform.OS === 'web' 
         ? await (await fetch(imageUri)).blob() 
-        : { uri: imageUri, name: fileName || 'car_photo.jpg', type: 'image/jpeg' };
+        : { 
+            uri: imageUri, 
+            name: fileName || 'car_photo.jpg', 
+            type: 'image/jpeg' 
+          };
     
     form.append('image', carImageData as any);
 
-    // Output Format (Transparency ke liye PNG zaroori hai)
-    if (opts.outputFormat) {
-        form.append('output_format', opts.outputFormat);
+    // 2. Action Logic (Backend expects 'remove' or 'replace')
+    form.append('action', opts.action);
+
+    // 3. Background Logic
+    if (opts.action === 'replace') {
+        if (opts.bgUrl) {
+            const isRemote = opts.bgUrl.startsWith('http');
+            if (isRemote) {
+                form.append('bg_url', opts.bgUrl);
+            } else {
+                // Custom Local Upload Case
+                const bgData = Platform.OS === 'web'
+                    ? await (await fetch(opts.bgUrl)).blob()
+                    : { uri: opts.bgUrl, name: 'background.jpg', type: 'image/jpeg' };
+                
+                form.append('background', bgData as any);
+                form.append('car_size', '65'); 
+                form.append('smart_placement', 'true');
+                endpoint = "/replace-background"; // Switch to special endpoint for custom BG
+            }
+        } else if (opts.bg_color) {
+            form.append('bg_color', opts.bg_color);
+        }
     }
 
-    // Background Logic
-    if (opts.bgUrl) {
-        const isRemote = opts.bgUrl.startsWith('http');
-        
-        if (isRemote) {
-            // Agar predefined URL hai toh /upload-image hi handle karta hai
-            form.append('bg_url', opts.bgUrl);
-            endpoint = "/upload-image";
-        } else {
-            // AGAR CUSTOM UPLOAD HAI -> Use /replace-background
-            const bgData = Platform.OS === 'web'
-                ? await (await fetch(opts.bgUrl)).blob()
-                : { uri: opts.bgUrl, name: 'background.jpg', type: 'image/jpeg' };
-            
-            form.append('background', bgData as any);
-            form.append('car_size', '65'); 
-            form.append('smart_placement', 'true');
-            endpoint = "/replace-background";
-        }
-    } else if (opts.bg_color) {
-        form.append('bg_color', opts.bg_color);
-        endpoint = "/upload-image";
-    } else {
-        // CASE: JUST REMOVE BG
-        // Jab kuch nahi bheja jayega, backend sirf background remove karega
-        endpoint = "/upload-image"; 
+    // 4. Output Format
+    if (opts.outputFormat) {
+        form.append('output_format', opts.outputFormat);
     }
 
     return { form, endpoint };
@@ -60,7 +62,7 @@ async function buildFormData(imageUri: string, fileName: string, opts: ProcessOp
 export async function processSingleImage(
     imageUri: string,
     fileName: string,
-    opts: ProcessOptions = {}
+    opts: ProcessOptions
 ): Promise<string> {
     const { form, endpoint } = await buildFormData(imageUri, fileName, opts);
 
@@ -68,8 +70,7 @@ export async function processSingleImage(
         const res = await fetch(`${API_BASE}${endpoint}`, {
             method: 'POST',
             body: form,
-            // 2 minute timeout
-            signal: AbortSignal.timeout(120000) 
+            signal: AbortSignal.timeout(120000) // 2 Minute Timeout
         });
 
         if (!res.ok) {
@@ -108,5 +109,6 @@ function blobToBase64(blob: Blob): Promise<string> {
         reader.readAsDataURL(blob);
     });
 }
+
 
 
