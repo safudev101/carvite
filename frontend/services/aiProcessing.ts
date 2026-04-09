@@ -3,32 +3,47 @@ import { Platform } from 'react-native';
 
 const API_BASE = "https://khan19970-carvite.hf.space";
 
-
 export interface ProcessOptions {
     bgUrl?: string;
     bg_color?: string;
 }
 
-async function buildFormData(imageUri: string, fileName: string, opts: ProcessOptions): Promise<FormData> {
+async function buildFormData(imageUri: string, fileName: string, opts: ProcessOptions): Promise<{ form: FormData; endpoint: string }> {
     const form = new FormData();
+    let endpoint = "/upload-image"; // Default endpoint
 
-    if (Platform.OS === 'web') {
-        const res = await fetch(imageUri);
-        const blob = await res.blob();
-        form.append('image', blob, fileName || 'input.jpg');
-    } else {
-        // @ts-ignore
-        form.append('image', {
-            uri: imageUri,
-            name: fileName || 'car_photo.jpg',
-            type: 'image/jpeg',
-        });
+    // Main Car Image
+    const carImageData = Platform.OS === 'web' 
+        ? await (await fetch(imageUri)).blob() 
+        : { uri: imageUri, name: fileName || 'car_photo.jpg', type: 'image/jpeg' };
+    
+    form.append('image', carImageData as any);
+
+    // Background Logic
+    if (opts.bgUrl) {
+        const isRemote = opts.bgUrl.startsWith('http');
+        
+        if (isRemote) {
+            // Agar predefined URL hai
+            form.append('bg_url', opts.bgUrl);
+            endpoint = "/upload-image";
+        } else {
+            // AGAR CUSTOM UPLOAD HAI -> Use /replace-background
+            const bgData = Platform.OS === 'web'
+                ? await (await fetch(opts.bgUrl)).blob()
+                : { uri: opts.bgUrl, name: 'background.jpg', type: 'image/jpeg' };
+            
+            form.append('background', bgData as any);
+            form.append('car_size', '65'); // Standard size for your app
+            form.append('smart_placement', 'true');
+            endpoint = "/replace-background";
+        }
+    } else if (opts.bg_color) {
+        form.append('bg_color', opts.bg_color);
+        endpoint = "/upload-image";
     }
 
-    if (opts.bgUrl) form.append('bg_url', opts.bgUrl);
-    if (opts.bg_color) form.append('bg_color', opts.bg_color);
-
-    return form;
+    return { form, endpoint };
 }
 
 export async function processSingleImage(
@@ -36,22 +51,23 @@ export async function processSingleImage(
     fileName: string,
     opts: ProcessOptions = {}
 ): Promise<string> {
-    const form = await buildFormData(imageUri, fileName, opts);
+    const { form, endpoint } = await buildFormData(imageUri, fileName, opts);
 
     try {
-        const res = await fetch(`${API_BASE}/upload-image`, {
+        const res = await fetch(`${API_BASE}${endpoint}`, {
             method: 'POST',
             body: form,
-            signal: AbortSignal.timeout(90000)
+            // Timeout barha diya hai kyunki replacement mein time lagta hai
+            signal: AbortSignal.timeout(120000) 
         });
 
         if (!res.ok) {
             const errorText = await res.text();
-            throw new Error(`AI Backend error: ${res.status}`);
+            throw new Error(`Backend Error (${res.status}): ${errorText}`);
         }
 
         const blob = await res.blob();
-        if (blob.size === 0) throw new Error("Empty response");
+        if (blob.size === 0) throw new Error("Empty response from AI");
 
         if (Platform.OS === 'web') {
             return URL.createObjectURL(blob);
@@ -65,7 +81,7 @@ export async function processSingleImage(
             return localPath;
         }
     } catch (error: any) {
-        console.error("[AI] Error:", error.message);
+        console.error("[AI] Critical Error:", error.message);
         throw error;
     }
 }
