@@ -10,13 +10,12 @@ import { ImageCard } from './ImageCard';
 
 export const BulkUploader: React.FC = () => {
     const { width } = useWindowDimensions();
-    const isMobile = width < 768; // Screen check for Mobile vs Web/iPad
+    const isMobile = width < 768;
 
     const { images, addImages, clearAllImages, isProcessing, processingProgress } = useStudioStore();
     const { processAllImages } = useImageProcessor();
     const [selectedId, setSelectedId] = useState<string | null>(null);
 
-    // Active image nikalne ka logic (Agar koi select nahi ki toh pehli dikhao)
     const activeImage = images.find(img => img.id === selectedId) || images[0];
 
     const pickImages = async () => {
@@ -34,7 +33,6 @@ export const BulkUploader: React.FC = () => {
                 status: 'idle',
             }));
             addImages(newImages);
-            // Nayi image add hone par usay select kar lo
             if (newImages.length > 0) setSelectedId(newImages[0].id);
         }
     };
@@ -97,31 +95,25 @@ export const BulkUploader: React.FC = () => {
                         </View>
                     )}
 
-                    {/* ============================================================== */}
-                    {/* 🔥 MOBILE VIEW: SINGLE CARD + CAROUSEL LOGIC 🔥 */}
-                    {/* ============================================================== */}
                     {isMobile ? (
                         <View>
                             {images.length === 0 ? (
-                                // No images state
                                 <TouchableOpacity onPress={pickImages} style={styles.emptyAddCardMobile}>
                                     <Ionicons name="camera-outline" size={36} color="#444" />
                                     <Text style={styles.addText}>Add Photo</Text>
                                 </TouchableOpacity>
                             ) : (
-                                // Images Exist State
                                 <View>
-                                    {/* Main Focused Card */}
                                     <View style={styles.mainFocusCard}>
                                         <ImageCard 
                                             image={activeImage} 
                                             isSelected={false} 
                                             onSelect={() => {}} 
+                                            onRemove={() => {}} 
                                             onDownload={() => activeImage.resultUri && handleDownload(activeImage.resultUri)} 
                                         />
                                     </View>
 
-                                    {/* Add More Photos Button */}
                                     {!isProcessing && (
                                         <TouchableOpacity onPress={pickImages} style={styles.addMoreBtn}>
                                             <Ionicons name="add-circle" size={22} color="#C9A84C" />
@@ -129,7 +121,6 @@ export const BulkUploader: React.FC = () => {
                                         </TouchableOpacity>
                                     )}
 
-                                    {/* Horizontal Carousel for multiple images */}
                                     {images.length > 1 && (
                                         <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.carouselContainer}>
                                             {images.map((img) => (
@@ -156,18 +147,23 @@ export const BulkUploader: React.FC = () => {
                         </View>
                     ) : (
                         // ============================================================== //
-                        // 💻 WEB / LANDSCAPE VIEW: GRID LOGIC (OLD BEHAVIOR) 💻          //
+                        // 💻 WEB / LANDSCAPE VIEW: FIXED GRID LOGIC 💻           //
                         // ============================================================== //
                         <View style={styles.grid}>
                             {images.map((img) => {
                                 const isSelected = selectedId === img.id;
                                 return (
-                                    <TouchableOpacity 
-                                        key={img.id} activeOpacity={0.9} onPress={() => setSelectedId(img.id)}
-                                        style={[styles.cardWrapper, isSelected && styles.cardSelected]}
-                                    >
-                                        <ImageCard image={img} isSelected={isSelected} onSelect={() => setSelectedId(img.id)} onDownload={() => img.resultUri && handleDownload(img.resultUri)} />
-                                    </TouchableOpacity>
+                                    // ✅ FIXED: TouchableOpacity hataya taake double click aur double border masla khatam ho.
+                                    // Sizing ka kaam sirf ye View karega (23% width). Baqi saara kaam aur border ImageCard khud sambhalega.
+                                    <View key={img.id} style={styles.gridItem}>
+                                        <ImageCard 
+                                            image={img} 
+                                            isSelected={isSelected} 
+                                            onSelect={() => setSelectedId(img.id)} 
+                                            onRemove={() => {}} // Remove implementation as needed
+                                            onDownload={() => img.resultUri && handleDownload(img.resultUri)} 
+                                        />
+                                    </View>
                                 );
                             })}
                             {!isProcessing && (
@@ -231,7 +227,7 @@ const styles = StyleSheet.create({
         width: '100%',
         borderRadius: 14,
         marginBottom: 12,
-        overflow: 'hidden',
+        // Removed overflow hidden from here so it doesn't clip ImageCard's own styles
     },
     addMoreBtn: {
         flexDirection: 'row',
@@ -283,8 +279,8 @@ const styles = StyleSheet.create({
 
     // 💻 Web / Landscape Grid Styles 💻
     grid: { flexDirection: 'row', flexWrap: 'wrap', gap: 12 },
-    cardWrapper: { width: Platform.OS === 'web' ? '23%' : '48%', borderRadius: 14, overflow: 'hidden' },
-    cardSelected: { borderWidth: 2, borderColor: '#C9A84C' },
+    // ✅ FIXED: Grid item sirf width define karega, baqi designing ImageCard khud karega
+    gridItem: { width: Platform.OS === 'web' ? '23%' : '48%' }, 
     addCard: { 
         width: Platform.OS === 'web' ? '23%' : '48%', aspectRatio: 16/9, backgroundColor: '#0A0A0A', 
         borderRadius: 12, borderStyle: 'dashed', borderWidth: 1.5, borderColor: '#222', 
