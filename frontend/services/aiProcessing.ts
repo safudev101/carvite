@@ -3,9 +3,10 @@ import { Platform } from 'react-native';
 
 const API_BASE = "https://khan19970-carvite.hf.space";
 
+
 export interface ProcessOptions {
     bgUrl?: string;
-    bg_color?: string; 
+    bg_color?: string;
 }
 
 async function buildFormData(imageUri: string, fileName: string, opts: ProcessOptions): Promise<FormData> {
@@ -20,7 +21,7 @@ async function buildFormData(imageUri: string, fileName: string, opts: ProcessOp
         form.append('image', {
             uri: imageUri,
             name: fileName || 'car_photo.jpg',
-            type: 'image/jpeg', 
+            type: 'image/jpeg',
         });
     }
 
@@ -36,12 +37,12 @@ export async function processSingleImage(
     opts: ProcessOptions = {}
 ): Promise<string> {
     const form = await buildFormData(imageUri, fileName, opts);
-    
+
     try {
-        const res = await fetch(`${API_BASE}/process`, {
+        const res = await fetch(`${API_BASE}`, {
             method: 'POST',
             body: form,
-            signal: AbortSignal.timeout(90000) 
+            signal: AbortSignal.timeout(90000)
         });
 
         if (!res.ok) {
@@ -58,8 +59,8 @@ export async function processSingleImage(
             const timestamp = Date.now();
             const localPath = `${FileSystem.cacheDirectory}processed_${timestamp}.png`;
             const base64 = await blobToBase64(blob);
-            await FileSystem.writeAsStringAsync(localPath, base64, { 
-                encoding: FileSystem.EncodingType.Base64 
+            await FileSystem.writeAsStringAsync(localPath, base64, {
+                encoding: FileSystem.EncodingType.Base64
             });
             return localPath;
         }
@@ -74,7 +75,7 @@ function blobToBase64(blob: Blob): Promise<string> {
         const reader = new FileReader();
         reader.onloadend = () => {
             const base64String = reader.result as string;
-            resolve(base64String.split(',')[1]); 
+            resolve(base64String.split(',')[1]);
         };
         reader.onerror = reject;
         reader.readAsDataURL(blob);
