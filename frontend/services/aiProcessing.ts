@@ -5,12 +5,14 @@ const API_BASE = "https://khan19970-carvite.hf.space";
 
 export interface ProcessOptions {
     bgUrl?: string;
+    bgId?: string;
     bg_color?: string;
+    outputFormat?: "PNG" | "WEBP" | "JPG"; // Naya option
 }
 
 async function buildFormData(imageUri: string, fileName: string, opts: ProcessOptions): Promise<{ form: FormData; endpoint: string }> {
     const form = new FormData();
-    let endpoint = "/upload-image"; // Default endpoint
+    let endpoint = "/upload-image"; // Default removal endpoint
 
     // Main Car Image
     const carImageData = Platform.OS === 'web' 
@@ -19,12 +21,17 @@ async function buildFormData(imageUri: string, fileName: string, opts: ProcessOp
     
     form.append('image', carImageData as any);
 
+    // Output Format (Transparency ke liye PNG zaroori hai)
+    if (opts.outputFormat) {
+        form.append('output_format', opts.outputFormat);
+    }
+
     // Background Logic
     if (opts.bgUrl) {
         const isRemote = opts.bgUrl.startsWith('http');
         
         if (isRemote) {
-            // Agar predefined URL hai
+            // Agar predefined URL hai toh /upload-image hi handle karta hai
             form.append('bg_url', opts.bgUrl);
             endpoint = "/upload-image";
         } else {
@@ -34,13 +41,17 @@ async function buildFormData(imageUri: string, fileName: string, opts: ProcessOp
                 : { uri: opts.bgUrl, name: 'background.jpg', type: 'image/jpeg' };
             
             form.append('background', bgData as any);
-            form.append('car_size', '65'); // Standard size for your app
+            form.append('car_size', '65'); 
             form.append('smart_placement', 'true');
             endpoint = "/replace-background";
         }
     } else if (opts.bg_color) {
         form.append('bg_color', opts.bg_color);
         endpoint = "/upload-image";
+    } else {
+        // CASE: JUST REMOVE BG
+        // Jab kuch nahi bheja jayega, backend sirf background remove karega
+        endpoint = "/upload-image"; 
     }
 
     return { form, endpoint };
@@ -57,7 +68,7 @@ export async function processSingleImage(
         const res = await fetch(`${API_BASE}${endpoint}`, {
             method: 'POST',
             body: form,
-            // Timeout barha diya hai kyunki replacement mein time lagta hai
+            // 2 minute timeout
             signal: AbortSignal.timeout(120000) 
         });
 
@@ -96,4 +107,6 @@ function blobToBase64(blob: Blob): Promise<string> {
         reader.onerror = reject;
         reader.readAsDataURL(blob);
     });
+}
+
 }
