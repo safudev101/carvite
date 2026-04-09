@@ -24,14 +24,6 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
-# Add CORS middleware
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=["*"],
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
-
 
 def get_dirs() -> tuple[Path, Path, Path]:
     """
@@ -50,7 +42,7 @@ def get_dirs() -> tuple[Path, Path, Path]:
 def read_root():
     return {"Hello": "World"}
 
-
+@app.post("/process")
 @app.post("/upload-image")
 def upload_image(image: UploadFile = File(...)):
     if not (image.content_type and image.content_type.startswith("image/")):
