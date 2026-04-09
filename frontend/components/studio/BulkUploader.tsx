@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { View, Text, TouchableOpacity, ScrollView, Platform, StyleSheet, Image, useWindowDimensions, Animated, Easing } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import * as ImagePicker from 'expo-image-picker';
-import * as MediaLibrary from 'expo-media-library';
+// ✅ MediaLibrary ka top-level import hata diya hai crash bachane ke liye
 import { useStudioStore } from '@/stores/studioStore';
 import { useImageProcessor } from '@/hooks/useImageProcessor';
 import { BackgroundPicker } from './BackgroundPicker';
@@ -16,25 +16,14 @@ export const BulkUploader: React.FC = () => {
     const { processAllImages } = useImageProcessor();
     const [selectedId, setSelectedId] = useState<string | null>(null);
     
-    // Animation Value for Scanning Line
     const scanAnim = useRef(new Animated.Value(0)).current;
 
     useEffect(() => {
         if (isProcessing) {
             Animated.loop(
                 Animated.sequence([
-                    Animated.timing(scanAnim, {
-                        toValue: 1,
-                        duration: 2000,
-                        easing: Easing.linear,
-                        useNativeDriver: true,
-                    }),
-                    Animated.timing(scanAnim, {
-                        toValue: 0,
-                        duration: 2000,
-                        easing: Easing.linear,
-                        useNativeDriver: true,
-                    }),
+                    Animated.timing(scanAnim, { toValue: 1, duration: 2000, easing: Easing.linear, useNativeDriver: true }),
+                    Animated.timing(scanAnim, { toValue: 0, duration: 2000, easing: Easing.linear, useNativeDriver: true }),
                 ])
             ).start();
         } else {
@@ -54,30 +43,47 @@ export const BulkUploader: React.FC = () => {
 
     const translateY = scanAnim.interpolate({
         inputRange: [0, 1],
-        outputRange: [0, isMobile ? 200 : 300], // Adjust based on card height
+        outputRange: [0, isMobile ? 180 : 250],
     });
 
-    const handleRemove = (id: string) => {
-        if (selectedId === id) {
-            const remaining = images.filter(img => img.id !== id);
-            setSelectedId(remaining.length > 0 ? remaining[0].id : null);
+    const pickImages = async () => {
+        let result = await ImagePicker.launchImageLibraryAsync({
+            mediaTypes: ImagePicker.MediaTypeOptions.Images,
+            allowsMultipleSelection: true,
+            quality: 0.8, // File size control
+        });
+
+        if (!result.canceled) {
+            const newImages = result.assets.map((asset) => ({
+                id: `img_${Date.now()}_${Math.random()}`,
+                uri: asset.uri,
+                fileName: asset.fileName || `car.jpg`,
+                status: 'idle' as const,
+            }));
+            addImages(newImages);
+            if (!selectedId) setSelectedId(newImages[0].id);
         }
-        removeImage(id);
     };
 
     const handleDownload = async (uri: string) => {
         if (Platform.OS === 'web') {
             const link = document.createElement('a');
             link.href = uri;
-            link.download = `autovisio_car_${Date.now()}.png`;
+            link.download = `autovisio_${Date.now()}.png`;
             document.body.appendChild(link);
             link.click();
             document.body.removeChild(link);
         } else {
-            const { status } = await MediaLibrary.requestPermissionsAsync();
-            if (status === 'granted') {
-                await MediaLibrary.createAssetAsync(uri);
-                alert("Saved to Gallery! ✨");
+            // ✅ Mobile par dynamic require taake web crash na ho
+            try {
+                const MediaLibrary = require('expo-media-library');
+                const { status } = await MediaLibrary.requestPermissionsAsync();
+                if (status === 'granted') {
+                    await MediaLibrary.createAssetAsync(uri);
+                    alert("Saved to Gallery! ✨");
+                }
+            } catch (err) {
+                console.error("Save error:", err);
             }
         }
     };
@@ -107,61 +113,38 @@ export const BulkUploader: React.FC = () => {
                         </View>
                     )}
 
-                    {isMobile ? (
-                        <View>
-                            {images.length === 0 ? (
-                                <TouchableOpacity onPress={pickImages} style={styles.emptyAddCardMobile}>
-                                    <Ionicons name="camera-outline" size={36} color="#444" />
-                                    <Text style={styles.addText}>Add Photo</Text>
-                                </TouchableOpacity>
-                            ) : (
-                                <View>
-                                    <View style={styles.mainFocusCard}>
+                    <View style={styles.gridContainer}>
+                        {images.length === 0 ? (
+                            <TouchableOpacity onPress={pickImages} style={styles.emptyAddCard}>
+                                <Ionicons name="camera-outline" size={36} color="#444" />
+                                <Text style={styles.addText}>Add Photos</Text>
+                            </TouchableOpacity>
+                        ) : (
+                            <View style={styles.grid}>
+                                {images.map((img) => (
+                                    <View key={img.id} style={isMobile ? styles.mobileGridItem : styles.webGridItem}>
                                         <ImageCard 
-                                            image={activeImage} 
-                                            isSelected={false} 
-                                            onSelect={() => {}} 
-                                            onRemove={() => handleRemove(activeImage.id)} 
-                                            onDownload={() => activeImage.resultUri && handleDownload(activeImage.resultUri)} 
+                                            image={img} 
+                                            isSelected={selectedId === img.id} 
+                                            onSelect={() => setSelectedId(img.id)} 
+                                            onRemove={() => removeImage(img.id)} 
+                                            onDownload={() => img.resultUri && handleDownload(img.resultUri)} 
                                         />
-                                        {/* SCANNING LINE OVERLAY */}
-                                        {isProcessing && activeImage.status === 'processing' && (
+                                        {isProcessing && img.status === 'processing' && (
                                             <Animated.View style={[styles.scanLine, { transform: [{ translateY }] }]} />
                                         )}
                                     </View>
-                                    {!isProcessing && (
-                                        <TouchableOpacity onPress={pickImages} style={styles.addMoreBtn}>
-                                            <Ionicons name="add-circle" size={22} color="#C9A84C" />
-                                            <Text style={styles.addMoreText}>Add more photos</Text>
-                                        </TouchableOpacity>
-                                    )}
-                                </View>
-                            )}
-                        </View>
-                    ) : (
-                        <View style={styles.grid}>
-                            {images.map((img) => (
-                                <View key={img.id} style={styles.gridItem}>
-                                    <ImageCard 
-                                        image={img} 
-                                        isSelected={selectedId === img.id} 
-                                        onSelect={() => setSelectedId(img.id)} 
-                                        onRemove={() => handleRemove(img.id)} 
-                                        onDownload={() => img.resultUri && handleDownload(img.resultUri)} 
-                                    />
-                                    {isProcessing && img.status === 'processing' && (
-                                        <Animated.View style={[styles.scanLine, { transform: [{ translateY }] }]} />
-                                    )}
-                                </View>
-                            ))}
-                            {!isProcessing && (
-                                <TouchableOpacity onPress={pickImages} style={styles.addCard}>
-                                    <Ionicons name="camera-outline" size={28} color="#444" />
-                                    <Text style={styles.addText}>Add Photo</Text>
-                                </TouchableOpacity>
-                            )}
-                        </View>
-                    )}
+                                ))}
+                                {!isProcessing && (
+                                    <TouchableOpacity onPress={pickImages} style={isMobile ? styles.mobileGridItem : styles.webGridItem}>
+                                        <View style={styles.addMoreGridBtn}>
+                                            <Ionicons name="add" size={30} color="#C9A84C" />
+                                        </View>
+                                    </TouchableOpacity>
+                                )}
+                            </View>
+                        )}
+                    </View>
                 </View>
                 <View style={{ height: 120 }} />
             </ScrollView>
@@ -189,39 +172,22 @@ const styles = StyleSheet.create({
     sectionHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 },
     sectionTitle: { color: '#666', fontSize: 10, fontWeight: '900', letterSpacing: 1.2 },
     clearBtn: { color: '#FF4444', fontSize: 12, fontWeight: '600' },
-    emptyAddCardMobile: { width: '100%', aspectRatio: 16/9, backgroundColor: '#0A0A0A', borderRadius: 14, borderStyle: 'dashed', borderWidth: 1.5, borderColor: '#333', justifyContent: 'center', alignItems: 'center' },
-    mainFocusCard: { width: '100%', borderRadius: 14, marginBottom: 12, overflow: 'hidden', position: 'relative' },
-    gridItem: { width: Platform.OS === 'web' ? '23.5%' : '48%', overflow: 'hidden', position: 'relative' },
-    
-    // SCANNING LINE STYLE
-    scanLine: {
-        position: 'absolute',
-        left: 0,
-        right: 0,
-        height: 4,
-        backgroundColor: '#C9A84C',
-        zIndex: 10,
-        shadowColor: "#C9A84C",
-        shadowOffset: { width: 0, height: 0 },
-        shadowOpacity: 1,
-        shadowRadius: 15,
-        elevation: 10,
-    },
-
-    addMoreBtn: { flexDirection: 'row', justifyContent: 'center', alignItems: 'center', backgroundColor: '#111', paddingVertical: 12, borderRadius: 10, borderWidth: 1, borderColor: '#222', marginBottom: 16 },
-    addMoreText: { color: '#ccc', fontSize: 14, fontWeight: '600', marginLeft: 8 },
-    grid: { flexDirection: 'row', flexWrap: 'wrap', gap: 12 },
-    addCard: { width: Platform.OS === 'web' ? '23.5%' : '48%', aspectRatio: 16/9, backgroundColor: '#0A0A0A', borderRadius: 12, borderStyle: 'dashed', borderWidth: 1.5, borderColor: '#222', justifyContent: 'center', alignItems: 'center' },
+    gridContainer: { width: '100%' },
+    emptyAddCard: { width: '100%', aspectRatio: 16/9, backgroundColor: '#0A0A0A', borderRadius: 14, borderStyle: 'dashed', borderWidth: 1.5, borderColor: '#333', justifyContent: 'center', alignItems: 'center' },
+    grid: { flexDirection: 'row', flexWrap: 'wrap', gap: 10 },
+    mobileGridItem: { width: '48.5%' },
+    webGridItem: { width: '23.5%' },
+    addMoreGridBtn: { width: '100%', aspectRatio: 4/3, backgroundColor: '#0A0A0A', borderRadius: 14, borderStyle: 'dashed', borderWidth: 1.5, borderColor: '#222', justifyContent: 'center', alignItems: 'center' },
     addText: { color: '#666', fontSize: 12, marginTop: 8, fontWeight: '600' },
-    
+    scanLine: { position: 'absolute', left: 0, right: 0, height: 3, backgroundColor: '#C9A84C', zIndex: 10, shadowColor: "#C9A84C", shadowRadius: 10, elevation: 5 },
     progressContainer: { height: 40, backgroundColor: '#0A0A0A', borderRadius: 12, marginBottom: 20, justifyContent: 'center', overflow: 'hidden', borderWidth: 1, borderColor: '#1A1A1A' },
     progressBar: { position: 'absolute', left: 0, top: 0, bottom: 0, backgroundColor: '#C9A84C', opacity: 0.3 },
     progressText: { textAlign: 'center', color: '#C9A84C', fontSize: 11, fontWeight: '900', zIndex: 1 },
-    
     footerContainer: { position: 'absolute', bottom: 30, left: 20, right: 20, flexDirection: 'row', gap: 12 },
-    actionBtn: { flex: 1, height: 55, borderRadius: 18, flexDirection: 'row', justifyContent: 'center', alignItems: 'center', elevation: 8 },
+    actionBtn: { flex: 1, height: 55, borderRadius: 18, flexDirection: 'row', justifyContent: 'center', alignItems: 'center' },
     enhanceBtn: { backgroundColor: '#C9A84C' },
     removeBgBtn: { backgroundColor: '#111', borderWidth: 1, borderColor: '#C9A84C' },
     enhanceBtnText: { color: '#000', fontWeight: '900', fontSize: 13 },
     removeBgBtnText: { color: '#C9A84C', fontWeight: '900', fontSize: 13 },
 });
+
