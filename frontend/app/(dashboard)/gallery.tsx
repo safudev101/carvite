@@ -12,13 +12,13 @@ import {
     Platform,
     Share,
     Dimensions,
+    StyleSheet,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import * as MediaLibrary from 'expo-media-library';
 import * as FileSystem from 'expo-file-system';
 
-import { Badge } from '@/components/ui/Badge';
 import { Spinner } from '@/components/ui/Spinner';
 import { useAuthStore } from '../../stores/authStore';
 import { supabase } from '../../services/supabase';
@@ -26,8 +26,6 @@ import { CarImage } from '../../types';
 import { useTheme } from '../../hooks/useTheme';
 
 const { width: SCREEN_W } = Dimensions.get('window');
-const COLS = Platform.OS === 'web' ? 4 : 2;
-const IMG_SIZE = (SCREEN_W - 48) / COLS;
 
 type SortOption = 'newest' | 'oldest';
 
@@ -42,6 +40,10 @@ export default function GalleryScreen() {
     const [selectedId, setSelectedId] = useState<string | null>(null);
     const [downloading, setDownloading] = useState<string | null>(null);
 
+    // Responsive Column Logic
+    const COLS = SCREEN_W > 768 ? 4 : 2;
+    const IMG_SIZE = (SCREEN_W - (16 * (COLS + 1))) / COLS;
+
     const fetchImages = useCallback(async () => {
         if (!user) return;
         try {
@@ -51,6 +53,7 @@ export default function GalleryScreen() {
                 .eq('user_id', user.id)
                 .eq('status', 'completed')
                 .order('created_at', { ascending: sort === 'oldest' });
+            
             if (error) throw error;
             setImages(data ?? []);
         } catch (err) {
@@ -70,9 +73,10 @@ export default function GalleryScreen() {
         fetchImages();
     };
 
-    // FIX: handleDownload with TypeScript bypass
     const handleDownload = async (img: CarImage) => {
-        if (!img.processed_url) return;
+        const url = img.processed_url || img.original_url;
+        if (!url) return;
+        
         setDownloading(img.id);
 
         try {
@@ -82,35 +86,33 @@ export default function GalleryScreen() {
                 return;
             }
 
-            // TypeScript fix using (FileSystem as any)
-            const cacheDir = (FileSystem as any).cacheDirectory;
-            if (!cacheDir) {
-                Alert.alert('Error', 'Cache directory not found');
-                return;
+            // Download to temporary cache
+            const filename = `carvite_${img.id}.png`;
+            const fileUri = `${FileSystem.cacheDirectory}${filename}`;
+            
+            const downloadResult = await FileSystem.downloadAsync(url, fileUri);
+
+            if (downloadResult.status === 200) {
+                await MediaLibrary.saveToLibraryAsync(downloadResult.uri);
+                Alert.alert('Success ✅', 'Image saved to your gallery.');
+            } else {
+                throw new Error('Download failed');
             }
-
-            const fileUri = `${cacheDir}carvite_${img.id}.jpg`;
-
-            // Image download process
-            const downloadResult = await FileSystem.downloadAsync(img.processed_url, fileUri);
-
-            // Save to Gallery
-            await MediaLibrary.saveToLibraryAsync(downloadResult.uri);
-            Alert.alert('Saved!', 'Image saved to your photo library.');
         } catch (e) {
             console.error('Download error:', e);
-            Alert.alert('Download Failed', 'Could not download the image.');
+            Alert.alert('Error', 'Could not save image. Please try again.');
         } finally {
             setDownloading(null);
         }
     };
 
     const handleShare = async (img: CarImage) => {
-        if (!img.processed_url) return;
+        const url = img.processed_url || img.original_url;
+        if (!url) return;
         try {
             await Share.share({
-                url: img.processed_url,
-                message: `Check out this AI-enhanced car photo — created with AutoVisio Studio`,
+                url: url,
+                message: `Check out my AI-enhanced car photo! 🚗✨`,
             });
         } catch (e) {
             console.error('Share failed', e);
@@ -120,23 +122,26 @@ export default function GalleryScreen() {
     const handleDelete = (img: CarImage) => {
         Alert.alert(
             'Delete Image',
-            'This will permanently remove this image from your gallery.',
+            'Are you sure? This will permanently remove this creation.',
             [
                 { text: 'Cancel', style: 'cancel' },
                 {
                     text: 'Delete',
                     style: 'destructive',
                     onPress: async () => {
-                        await supabase.from('car_images').delete().eq('id', img.id);
-                        setImages((prev) => prev.filter((i) => i.id !== img.id));
-                        if (selectedId === img.id) setSelectedId(null);
+                        try {
+                            const { error } = await supabase.from('car_images').delete().eq('id', img.id);
+                            if (error) throw error;
+                            setImages((prev) => prev.filter((i) => i.id !== img.id));
+                            if (selectedId === img.id) setSelectedId(null);
+                        } catch (e) {
+                            Alert.alert('Error', 'Could not delete image.');
+                        }
                     },
                 },
             ]
         );
     };
-
-    const bgColor = isDark ? '#080808' : '#F4F4F5';
 
     const renderItem = ({ item }: { item: CarImage }) => {
         const isSelected = selectedId === item.id;
@@ -145,151 +150,93 @@ export default function GalleryScreen() {
         return (
             <TouchableOpacity
                 onPress={() => setSelectedId(isSelected ? null : item.id)}
-                activeOpacity={0.88}
-                style={{
-                    width: IMG_SIZE,
-                    marginRight: 12,
-                    marginBottom: 12,
-                }}
+                activeOpacity={0.9}
+                style={[styles.cardContainer, { width: IMG_SIZE }]}
             >
-                <View
-                    style={{
-                        borderRadius: 14,
-                        overflow: 'hidden',
-                        borderWidth: 2,
-                        borderColor: isSelected ? '#C9A84C' : 'transparent',
-                        backgroundColor: '#111',
-                        shadowColor: isSelected ? '#C9A84C' : '#000',
-                        shadowOffset: { width: 0, height: 4 },
-                        shadowOpacity: isSelected ? 0.4 : 0.2,
-                        shadowRadius: 10,
-                        elevation: 5,
-                    }}
-                >
+                <View style={[styles.cardFrame, isSelected && styles.cardSelected]}>
                     <Image
                         source={{ uri: item.processed_url ?? item.original_url }}
-                        style={{ width: '100%', aspectRatio: 4 / 3 }}
+                        style={styles.image}
                         resizeMode="cover"
                     />
 
                     {isSelected && (
-                        <View
-                            style={{
-                                position: 'absolute',
-                                top: 0, bottom: 0, left: 0, right: 0,
-                                backgroundColor: 'rgba(0,0,0,0.55)',
-                                alignItems: 'center',
-                                justifyContent: 'center',
-                                flexDirection: 'row',
-                                gap: 16,
-                            }}
-                        >
+                        <View style={styles.overlay}>
                             <TouchableOpacity
                                 onPress={() => handleDownload(item)}
-                                style={actionBtnStyle('#C9A84C')}
+                                style={[styles.actionBtn, { backgroundColor: '#C9A84C' }]}
                                 disabled={isDownloading}
                             >
-                                {isDownloading ? (
-                                    <Spinner size={16} color="#000" />
-                                ) : (
-                                    <Ionicons name="download-outline" size={18} color="#000" />
-                                )}
+                                {isDownloading ? <Spinner size={16} color="#000" /> : <Ionicons name="download" size={20} color="#000" />}
                             </TouchableOpacity>
 
                             <TouchableOpacity
                                 onPress={() => handleShare(item)}
-                                style={actionBtnStyle('#3B82F6')}
+                                style={[styles.actionBtn, { backgroundColor: '#3B82F6' }]}
                             >
-                                <Ionicons name="share-outline" size={18} color="#fff" />
+                                <Ionicons name="share-social" size={20} color="#fff" />
                             </TouchableOpacity>
 
                             <TouchableOpacity
                                 onPress={() => handleDelete(item)}
-                                style={actionBtnStyle('#EF4444')}
+                                style={[styles.actionBtn, { backgroundColor: '#EF4444' }]}
                             >
-                                <Ionicons name="trash-outline" size={18} color="#fff" />
+                                <Ionicons name="trash" size={20} color="#fff" />
                             </TouchableOpacity>
                         </View>
                     )}
 
-                    <View style={{ backgroundColor: '#0D0D0D', paddingHorizontal: 10, paddingVertical: 8 }}>
-                        <Text style={{ color: '#9CA3AF', fontSize: 10 }} numberOfLines={1}>
-                            {item.file_name ?? 'Untitled'}
-                        </Text>
-                        <Text style={{ color: '#4B5563', fontSize: 9, marginTop: 1 }}>
-                            {new Date(item.created_at).toLocaleDateString()}
+                    {/* Badge for Type */}
+                    <View style={styles.typeBadge}>
+                        <Text style={styles.typeBadgeText}>
+                            {item.processed_url ? 'AI READY' : 'ORIGINAL'}
                         </Text>
                     </View>
+                </View>
+                
+                <View style={styles.infoArea}>
+                    <Text style={styles.fileName} numberOfLines={1}>
+                        {item.file_name || 'Untitled Project'}
+                    </Text>
+                    <Text style={styles.fileDate}>
+                        {new Date(item.created_at).toLocaleDateString()}
+                    </Text>
                 </View>
             </TouchableOpacity>
         );
     };
 
     return (
-        <SafeAreaView style={{ flex: 1, backgroundColor: bgColor }}>
+        <SafeAreaView style={[styles.safeArea, { backgroundColor: isDark ? '#000' : '#F4F4F5' }]}>
             <StatusBar barStyle="light-content" />
 
-            <LinearGradient
-                colors={['#0A0A0A', '#111111']}
-                style={{
-                    paddingHorizontal: 20,
-                    paddingTop: Platform.OS === 'android' ? 48 : 16,
-                    paddingBottom: 20,
-                    borderBottomWidth: 1,
-                    borderBottomColor: '#1E1E1E',
-                }}
-            >
-                <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
+            <LinearGradient colors={['#0A0A0A', '#111']} style={styles.header}>
+                <View style={styles.headerTop}>
                     <View>
-                        <Text style={{ color: '#C9A84C', fontSize: 11, fontWeight: '600', letterSpacing: 1.2, textTransform: 'uppercase' }}>
-                            Your Work
-                        </Text>
-                        <Text style={{ color: '#fff', fontSize: 22, fontWeight: '800', marginTop: 2 }}>
-                            Gallery
-                        </Text>
+                        <Text style={styles.kicker}>STUDIO ARCHIVE</Text>
+                        <Text style={styles.title}>Gallery</Text>
                     </View>
-
-                    <View style={{ flexDirection: 'row', gap: 10, alignItems: 'center' }}>
-                        <Badge label={`${images.length} photos`} variant="neutral" />
-                        <TouchableOpacity
-                            onPress={() => setSort((s) => (s === 'newest' ? 'oldest' : 'newest'))}
-                            style={{
-                                flexDirection: 'row',
-                                alignItems: 'center',
-                                gap: 5,
-                                backgroundColor: 'rgba(255,255,255,0.06)',
-                                borderWidth: 1,
-                                borderColor: 'rgba(255,255,255,0.1)',
-                                borderRadius: 8,
-                                paddingHorizontal: 12,
-                                paddingVertical: 6,
-                            }}
-                        >
-                            <Ionicons
-                                name={sort === 'newest' ? 'arrow-down' : 'arrow-up'}
-                                size={12}
-                                color="#9CA3AF"
-                            />
-                            <Text style={{ color: '#9CA3AF', fontSize: 12, fontWeight: '600' }}>
-                                {sort === 'newest' ? 'Newest' : 'Oldest'}
-                            </Text>
-                        </TouchableOpacity>
-                    </View>
+                    
+                    <TouchableOpacity
+                        onPress={() => setSort(s => s === 'newest' ? 'oldest' : 'newest')}
+                        style={styles.sortBtn}
+                    >
+                        <Ionicons name={sort === 'newest' ? 'funnel' : 'funnel-outline'} size={14} color="#C9A84C" />
+                        <Text style={styles.sortText}>{sort === 'newest' ? 'Newest' : 'Oldest'}</Text>
+                    </TouchableOpacity>
                 </View>
             </LinearGradient>
 
             {loading ? (
-                <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center', gap: 14 }}>
-                    <Spinner size={32} color="#C9A84C" />
-                    <Text style={{ color: '#6B7280', fontSize: 14 }}>Loading gallery…</Text>
+                <View style={styles.center}>
+                    <Spinner size={40} color="#C9A84C" />
+                    <Text style={styles.statusText}>Syncing your gallery...</Text>
                 </View>
             ) : images.length === 0 ? (
-                <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center', gap: 12, padding: 40 }}>
-                    <Ionicons name="images-outline" size={52} color="#374151" />
-                    <Text style={{ color: '#9CA3AF', fontSize: 18, fontWeight: '700' }}>No images yet</Text>
-                    <Text style={{ color: '#6B7280', fontSize: 14, textAlign: 'center' }}>
-                        Process your first car photo in the Studio tab to see it here.
-                    </Text>
+                <View style={styles.center}>
+                    <Ionicons name="cloud-offline-outline" size={64} color="#333" />
+                    <Text style={styles.emptyTitle}>No Creations Found</Text>
+                    <Text style={styles.emptySub}>Processed images will appear here automatically.</Text>
                 </View>
             ) : (
                 <FlatList
@@ -297,7 +244,7 @@ export default function GalleryScreen() {
                     keyExtractor={(item) => item.id}
                     renderItem={renderItem}
                     numColumns={COLS}
-                    contentContainerStyle={{ padding: 16 }}
+                    contentContainerStyle={styles.listContainer}
                     showsVerticalScrollIndicator={false}
                     refreshControl={
                         <RefreshControl refreshing={refreshing} onRefresh={handleRefresh} tintColor="#C9A84C" />
@@ -308,16 +255,33 @@ export default function GalleryScreen() {
     );
 }
 
-const actionBtnStyle = (bg: string) => ({
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    backgroundColor: bg,
-    alignItems: 'center' as const,
-    justifyContent: 'center' as const,
-    shadowColor: bg,
-    shadowOffset: { width: 0, height: 3 },
-    shadowOpacity: 0.5,
-    shadowRadius: 6,
-    elevation: 4,
+const styles = StyleSheet.create({
+    safeArea: { flex: 1 },
+    header: { paddingHorizontal: 20, paddingBottom: 20, paddingTop: Platform.OS === 'android' ? 45 : 10, borderBottomWidth: 1, borderBottomColor: '#1A1A1A' },
+    headerTop: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-end' },
+    kicker: { color: '#C9A84C', fontSize: 10, fontWeight: '700', letterSpacing: 2 },
+    title: { color: '#FFF', fontSize: 32, fontWeight: '900' },
+    sortBtn: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#1A1A1A', paddingHorizontal: 12, paddingVertical: 8, borderRadius: 20, gap: 6, borderWidth: 1, borderColor: '#333' },
+    sortText: { color: '#EEE', fontSize: 12, fontWeight: '600' },
+    
+    listContainer: { padding: 16 },
+    cardContainer: { marginBottom: 20, marginRight: 10 },
+    cardFrame: { borderRadius: 16, overflow: 'hidden', backgroundColor: '#111', position: 'relative', elevation: 4, shadowColor: '#000', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.3, shadowRadius: 8 },
+    cardSelected: { borderWidth: 2, borderColor: '#C9A84C' },
+    image: { width: '100%', aspectRatio: 1 },
+    
+    overlay: { ...StyleSheet.absoluteFillObject, backgroundColor: 'rgba(0,0,0,0.7)', justifyContent: 'center', alignItems: 'center', flexDirection: 'row', gap: 12 },
+    actionBtn: { width: 44, height: 44, borderRadius: 22, justifyContent: 'center', alignItems: 'center' },
+    
+    typeBadge: { position: 'absolute', top: 8, left: 8, backgroundColor: 'rgba(0,0,0,0.6)', paddingHorizontal: 6, paddingVertical: 2, borderRadius: 4 },
+    typeBadgeText: { color: '#C9A84C', fontSize: 8, fontWeight: '800' },
+    
+    infoArea: { marginTop: 8, paddingHorizontal: 4 },
+    fileName: { color: '#FFF', fontSize: 13, fontWeight: '600' },
+    fileDate: { color: '#666', fontSize: 10, marginTop: 2 },
+    
+    center: { flex: 1, justifyContent: 'center', alignItems: 'center', padding: 40 },
+    statusText: { color: '#666', marginTop: 15, fontSize: 14 },
+    emptyTitle: { color: '#FFF', fontSize: 20, fontWeight: '800', marginTop: 20 },
+    emptySub: { color: '#555', textAlign: 'center', marginTop: 8, fontSize: 14 }
 });
