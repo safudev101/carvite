@@ -36,6 +36,9 @@ RUN chmod -R 777 /app
 
 EXPOSE 7860
 
-# 8. Start Command: 
+
+# 8. ⚠️ NEW FIX: Python ko batao ke folders kahan hain
+ENV PYTHONPATH="/app:/app/api"
+
 # Humne '--app-dir api/src' dala hai kyunki main.py wahan parhi hai
 CMD ["python", "-m", "uvicorn", "main:app", "--host", "0.0.0.0", "--port", "7860", "--app-dir", "api/src", "--timeout-keep-alive", "120"]
