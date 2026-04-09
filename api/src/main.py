@@ -3,6 +3,8 @@ import os
 import shutil
 from pathlib import Path
 import sys
+import io
+import requests as http_requests
 
 root_dir = Path(__file__).resolve().parent.parent.parent
 sys.path.append(str(root_dir))
@@ -10,6 +12,7 @@ sys.path.append(str(root_dir))
 from fastapi import FastAPI, File, HTTPException, UploadFile, Form
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
+from PIL import Image
 
 from src.constants import ALLOWED_EXTENSIONS, MAX_WORKERS, SUPPORTED_MODELS
 from src.util import process_model_replacement, validate_uploaded_image
@@ -20,16 +23,12 @@ app = FastAPI()
 # Add CORS middleware
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # In production, replace with specific origins
+    allow_origins=["*"],
     allow_methods=["*"],
     allow_headers=["*"],
 )
 
 def get_dirs() -> tuple[Path, Path, Path]:
-    """
-    Default behavior: saves under ./images.
-    Tests can override with IMAGE_BASE_DIR.
-    """
     base_dir = Path(os.environ.get("IMAGE_BASE_DIR") or "images")
     input_dir = base_dir / "input"
     output_dir = base_dir / "output"
@@ -42,9 +41,14 @@ def get_dirs() -> tuple[Path, Path, Path]:
 def read_root():
     return {"Hello": "World"}
 
+
 @app.post("/process")
 @app.post("/upload-image")
-def upload_image(image: UploadFile = File(...)):
+def upload_image(
+    image: UploadFile = File(...),
+    bg_color: str = Form(None),
+    bg_url: str = Form(None),
+):
     if not (image.content_type and image.content_type.startswith("image/")):
         raise HTTPException(status_code=400, detail="File is not an image.")
 
@@ -65,18 +69,35 @@ def upload_image(image: UploadFile = File(...)):
     finally:
         image.file.close()
 
+    # Background removal
     output_img, _ = processor.process_image(
         str(input_path), model_name="isnet-general-use"
     )
+    output_img = output_img.convert("RGBA")
+
+    # Apply background if provided
+    if bg_url:
+        try:
+            bg_response = http_requests.get(bg_url, timeout=15)
+            bg_response.raise_for_status()
+            bg_img = Image.open(io.BytesIO(bg_response.content)).convert("RGBA")
+            bg_img = bg_img.resize(output_img.size, Image.LANCZOS)
+            bg_img.paste(output_img, (0, 0), output_img)
+            output_img = bg_img
+        except Exception as e:
+            raise HTTPException(status_code=400, detail=f"Failed to fetch bg_url: {str(e)}")
+
+    elif bg_color:
+        try:
+            bg_img = Image.new("RGBA", output_img.size, bg_color)
+            bg_img.paste(output_img, (0, 0), output_img)
+            output_img = bg_img
+        except Exception as e:
+            raise HTTPException(status_code=400, detail=f"Invalid bg_color: {str(e)}")
+
     output_img.save(output_path, format="PNG")
 
-    return {
-        "input_filename": input_path.name,
-        "input_path": str(input_path),
-        "output_filename": output_path.name,
-        "output_path": str(output_path),
-        "message": "Image uploaded and processed successfully",
-    }
+    return FileResponse(str(output_path), media_type="image/png")
 
 
 @app.post("/replace-background")
@@ -94,13 +115,6 @@ def replace_background_endpoint(
         description="Enable intelligent ground plane detection",
     ),
 ):
-    """
-    Replace the background of a car image with a new background.
-
-    This endpoint performs AI-powered background removal on the car image,
-    then intelligently composites it onto a new background with proper scaling
-    and ground plane detection.
-    """
     car_size_decimal = car_size / 100.0
 
     for file in [image, background]:
@@ -147,15 +161,8 @@ def replace_background_endpoint(
         image.file.close()
         background.file.close()
 
-    return {
-        "input_foreground": fg_path.name,
-        "input_background": bg_path.name,
-        "output_filename": output_path.name,
-        "output_path": str(output_path),
-        "car_size_percentage": f"{car_size}%",
-        "smart_placement_enabled": smart_placement,
-        "message": "Background replaced successfully with intelligent scaling and positioning",
-    }
+    return FileResponse(str(output_path), media_type="image/png")
+
 
 import asyncio
 import time
@@ -243,6 +250,7 @@ async def replace_background_all_models(
         "results": sorted(results, key=lambda r: r["model"]),
         "message": "Multi-model background replacement completed",
     }
+
 
 @app.get("/output/{filename}")
 def get_output(filename: str):
