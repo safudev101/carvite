@@ -6,7 +6,7 @@ const API_BASE = "https://khan19970-carvite.hf.space";
 export interface ProcessOptions {
     bgUrl?: string;
     bg_color?: string;
-    model_name?: string; // Added for backend compatibility
+    model_name?: string;
 }
 
 /**
@@ -18,8 +18,10 @@ async function buildFormData(imageUri: string, fileName: string, opts: ProcessOp
     
     // Backend expects action and model_name
     form.append('action', action);
-    form.append('model_name', opts.model_name || 'unimodel-car-v1'); // Default model name
+    form.append('model_name', opts.model_name || 'isnet-general-use'); 
     
+    // ✅ Endpoint logic
+    // Default endpoint is "/process"
     let endpoint = "/process"; 
 
     // Car Image handle
@@ -35,16 +37,17 @@ async function buildFormData(imageUri: string, fileName: string, opts: ProcessOp
             form.append('bg_url', opts.bgUrl);
             endpoint = "/process"; 
         } else {
-            // Local Background logic
+            // Local Background logic (Custom Upload)
             const bgData = Platform.OS === 'web'
                 ? await (await fetch(opts.bgUrl)).blob()
                 : { uri: opts.bgUrl, name: 'background.jpg', type: 'image/jpeg' } as any;
             
-            // form.append('background', bgData);
-            // form.append('car_size', '0.65'); 
-            // form.append('smart_placement', 'true');
-            // // Agar backend specific endpoint use karta hai local files ke liye
-            let endpoint = "/process";
+            form.append('background', bgData);
+            form.append('car_size', '0.65'); 
+            form.append('smart_placement', 'true');
+            
+            // Agar backend custom background ke liye alag route use karta hai:
+            endpoint = "/process"; // Yahan aapka default hi chalega agar backend single endpoint hai
         }
     }
     return { form, endpoint };
@@ -60,7 +63,8 @@ export async function processSingleImage(imageUri: string, fileName: string, opt
     const timeoutId = setTimeout(() => controller.abort(), 120000); 
 
     try {
-        const res = await fetch(`${API_BASE}${endpoint}/process`, {
+        // ✅ FIXED: No more double slashes or double "/process"
+        const res = await fetch(`${API_BASE}${endpoint}`, {
             method: 'POST',
             body: form,
             signal: controller.signal
@@ -70,7 +74,6 @@ export async function processSingleImage(imageUri: string, fileName: string, opt
 
         if (!res.ok) {
             const errorText = await res.text();
-            // Logging specific backend error for debugging
             console.error("[Backend Raw Error]:", errorText);
             throw new Error(`Backend Error (${res.status}): ${errorText}`);
         }
@@ -99,6 +102,7 @@ export async function processSingleImage(imageUri: string, fileName: string, opt
         }
     } catch (error: any) {
         clearTimeout(timeoutId);
+        console.error("Fetch Error:", error.message);
         throw error;
     }
 }
