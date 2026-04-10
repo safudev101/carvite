@@ -15,44 +15,50 @@ export interface ProcessOptions {
 async function buildFormData(imageUri: string, fileName: string, opts: ProcessOptions): Promise<{ form: FormData; endpoint: string }> {
     const form = new FormData();
     
-    // Default model_name jo main.py mang raha hai
+    // Model name according to main.py
     form.append('model_name', opts.model_name || 'isnet-general-use'); 
     let endpoint = "/process"; 
 
-    // 1. Car Image Handle
+    // 1. Car Image Handling (Optimized for Mobile/Web)
     const carImageData = Platform.OS === 'web' 
         ? await (await fetch(imageUri)).blob() 
-        : { uri: imageUri, name: fileName || 'car_photo.jpg', type: 'image/jpeg' } as any;
+        : { 
+            uri: imageUri, 
+            name: fileName || 'car_photo.jpg', 
+            type: 'image/jpeg' 
+          } as any;
     
     form.append('image', carImageData);
 
-    // 2. Logic based on main.py conditions
+    // 2. Conditional Logic for Backend Conditions
     if (opts.bgUrl) {
         if (opts.bgUrl.startsWith('http')) {
-            // Case: Pre-defined URL Replacement
             form.append('action', 'replace');
             form.append('bg_url', opts.bgUrl);
             endpoint = "/process";
         } else {
-            // Case: Custom Local BG Upload (Uses dedicated endpoint)
+            // Custom Local BG
             const bgData = Platform.OS === 'web'
                 ? await (await fetch(opts.bgUrl)).blob()
-                : { uri: opts.bgUrl, name: 'custom_bg.jpg', type: 'image/jpeg' } as any;
+                : { 
+                    uri: opts.bgUrl, 
+                    name: 'custom_bg.jpg', 
+                    type: 'image/jpeg' 
+                  } as any;
             
             form.append('background', bgData);
             form.append('car_size', '0.70'); 
             form.append('smart_placement', 'true');
             endpoint = "/replace-background"; 
         }
-    } else if (opts.bg_color && opts.bg_color !== 'transparent') {
-        // Case: Color Background
+    } else if (opts.bg_color && opts.bg_color !== 'transparent' && opts.bg_color !== '') {
         form.append('action', 'replace');
         form.append('bg_color', opts.bg_color);
         endpoint = "/process";
     } else {
-        // ✅ FIXED FOR TRANSPARENCY:
-        // main.py checks: if action == "remove" and not bg_url and not bg_color
-        // Hum sirf action bhejenge, baqi parameters ko omit kar denge.
+        // ✅ STRICT TRANSPARENCY:
+        // Main.py condition: if action == "remove" and not bg_url and not bg_color
+        // We ensure NO extra fields are sent.
         form.append('action', 'remove');
         endpoint = "/process";
     }
@@ -66,14 +72,19 @@ async function buildFormData(imageUri: string, fileName: string, opts: ProcessOp
 export async function processSingleImage(imageUri: string, fileName: string, opts: ProcessOptions = {}): Promise<string> {
     const { form, endpoint } = await buildFormData(imageUri, fileName, opts);
 
-    // Speed optimization: Timeout set to 90s for faster failure detection
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), 90000); 
 
     try {
+        console.log(`[AI Request]: Sending to ${endpoint}`);
+        
         const res = await fetch(`${API_BASE}${endpoint}`, {
             method: 'POST',
             body: form,
+            headers: {
+                // Ensure backend knows we expect an image
+                'Accept': 'image/png',
+            },
             signal: controller.signal
         });
 
@@ -87,7 +98,7 @@ export async function processSingleImage(imageUri: string, fileName: string, opt
         const blob = await res.blob();
         if (blob.size === 0) throw new Error("Empty image received.");
 
-        // Force blob type as PNG for transparency handling on Web/Mobile
+        // ✅ IMPORTANT: Force PNG type for transparency rendering
         const pngBlob = new Blob([blob], { type: 'image/png' });
 
         if (Platform.OS === 'web') {
@@ -95,24 +106,29 @@ export async function processSingleImage(imageUri: string, fileName: string, opt
         } else {
             const timestamp = Date.now();
             const localPath = `${FileSystem.cacheDirectory}processed_${timestamp}.png`;
-            const reader = new FileReader();
             
+            // Read as Data URL to maintain transparency during Base64 conversion
+            const reader = new FileReader();
             return new Promise((resolve, reject) => {
                 reader.onloadend = async () => {
                     const result = reader.result as string;
                     const base64 = result.split(',')[1];
-                    await FileSystem.writeAsStringAsync(localPath, base64, { 
-                        encoding: FileSystem.EncodingType.Base64 
-                    });
-                    resolve(localPath);
+                    try {
+                        await FileSystem.writeAsStringAsync(localPath, base64, { 
+                            encoding: FileSystem.EncodingType.Base64 
+                        });
+                        resolve(localPath);
+                    } catch (e) {
+                        reject(new Error("Storage failed"));
+                    }
                 };
-                reader.onerror = () => reject(new Error("File conversion failed."));
+                reader.onerror = () => reject(new Error("Blob read error"));
                 reader.readAsDataURL(pngBlob);
             });
         }
     } catch (error: any) {
         clearTimeout(timeoutId);
-        console.error("AI processing failed:", error.message);
+        console.error("AI Error:", error.message);
         throw error;
     }
 }
