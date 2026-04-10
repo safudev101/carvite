@@ -2,7 +2,6 @@ import React, { useState, useEffect, useRef } from 'react';
 import { View, Text, TouchableOpacity, ScrollView, Platform, StyleSheet, Image, useWindowDimensions, Animated, Easing } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import * as ImagePicker from 'expo-image-picker';
-// ✅ MediaLibrary ka top-level import hata diya hai crash bachane ke liye
 import { useStudioStore } from '@/stores/studioStore';
 import { useImageProcessor } from '@/hooks/useImageProcessor';
 import { BackgroundPicker } from './BackgroundPicker';
@@ -15,7 +14,7 @@ export const BulkUploader: React.FC = () => {
     const { images, addImages, removeImage, clearAllImages, isProcessing, processingProgress } = useStudioStore();
     const { processAllImages } = useImageProcessor();
     const [selectedId, setSelectedId] = useState<string | null>(null);
-    
+
     const scanAnim = useRef(new Animated.Value(0)).current;
 
     useEffect(() => {
@@ -50,7 +49,7 @@ export const BulkUploader: React.FC = () => {
         let result = await ImagePicker.launchImageLibraryAsync({
             mediaTypes: ImagePicker.MediaTypeOptions.Images,
             allowsMultipleSelection: true,
-            quality: 0.8, // File size control
+            quality: 0.8,
         });
 
         if (!result.canceled) {
@@ -74,7 +73,6 @@ export const BulkUploader: React.FC = () => {
             link.click();
             document.body.removeChild(link);
         } else {
-            // ✅ Mobile par dynamic require taake web crash na ho
             try {
                 const MediaLibrary = require('expo-media-library');
                 const { status } = await MediaLibrary.requestPermissionsAsync();
@@ -88,7 +86,9 @@ export const BulkUploader: React.FC = () => {
         }
     };
 
+    // ✅ FIX 2: pendingImages صرف count/logic ke liye — buttons ki visibility images.length se
     const pendingImages = images.filter(img => img.status === 'idle' || img.status === 'error');
+    const hasPending = pendingImages.length > 0;
 
     return (
         <View style={styles.container}>
@@ -123,12 +123,12 @@ export const BulkUploader: React.FC = () => {
                             <View style={styles.grid}>
                                 {images.map((img) => (
                                     <View key={img.id} style={isMobile ? styles.mobileGridItem : styles.webGridItem}>
-                                        <ImageCard 
-                                            image={img} 
-                                            isSelected={selectedId === img.id} 
-                                            onSelect={() => setSelectedId(img.id)} 
-                                            onRemove={() => removeImage(img.id)} 
-                                            onDownload={() => img.resultUri && handleDownload(img.resultUri)} 
+                                        <ImageCard
+                                            image={img}
+                                            isSelected={selectedId === img.id}
+                                            onSelect={() => setSelectedId(img.id)}
+                                            onRemove={() => removeImage(img.id)}
+                                            onDownload={() => img.resultUri && handleDownload(img.resultUri)}
                                         />
                                         {isProcessing && img.status === 'processing' && (
                                             <Animated.View style={[styles.scanLine, { transform: [{ translateY }] }]} />
@@ -149,15 +149,36 @@ export const BulkUploader: React.FC = () => {
                 <View style={{ height: 120 }} />
             </ScrollView>
 
-            {pendingImages.length > 0 && !isProcessing && (
+            {/*
+              ✅ FIX 2: Buttons ab images.length > 0 par dikhenge
+              — processed (done) images ke baad bhi buttons mojood rahenge
+              — sirf tab ghayab honge jab processing chal rahi ho ya koi image hi na ho
+              — hasPending se button ka disabled/opacity control hota hai
+            */}
+            {images.length > 0 && !isProcessing && (
                 <View style={styles.footerContainer}>
-                    <TouchableOpacity onPress={() => processAllImages(true)} style={[styles.actionBtn, styles.removeBgBtn]}>
-                        <Ionicons name="cut-outline" size={18} color="#C9A84C" style={{marginRight: 6}} />
-                        <Text style={styles.removeBgBtnText}>REMOVE BG</Text>
+                    <TouchableOpacity
+                        onPress={() => hasPending && processAllImages(true)}
+                        style={[
+                            styles.actionBtn,
+                            styles.removeBgBtn,
+                            !hasPending && styles.btnDisabled,  // Disabled look jab koi pending na ho
+                        ]}
+                    >
+                        <Ionicons name="cut-outline" size={18} color={hasPending ? "#C9A84C" : "#555"} style={{ marginRight: 6 }} />
+                        <Text style={[styles.removeBgBtnText, !hasPending && styles.btnTextDisabled]}>REMOVE BG</Text>
                     </TouchableOpacity>
-                    <TouchableOpacity onPress={() => processAllImages(false)} style={[styles.actionBtn, styles.enhanceBtn]}>
-                        <Ionicons name="sparkles" size={18} color="#000" style={{marginRight: 6}} />
-                        <Text style={styles.enhanceBtnText}>ENHANCE AI</Text>
+
+                    <TouchableOpacity
+                        onPress={() => hasPending && processAllImages(false)}
+                        style={[
+                            styles.actionBtn,
+                            styles.enhanceBtn,
+                            !hasPending && styles.enhanceBtnDisabled,
+                        ]}
+                    >
+                        <Ionicons name="sparkles" size={18} color={hasPending ? "#000" : "#555"} style={{ marginRight: 6 }} />
+                        <Text style={[styles.enhanceBtnText, !hasPending && styles.btnTextDisabled]}>ENHANCE AI</Text>
                     </TouchableOpacity>
                 </View>
             )}
@@ -173,11 +194,11 @@ const styles = StyleSheet.create({
     sectionTitle: { color: '#666', fontSize: 10, fontWeight: '900', letterSpacing: 1.2 },
     clearBtn: { color: '#FF4444', fontSize: 12, fontWeight: '600' },
     gridContainer: { width: '100%' },
-    emptyAddCard: { width: '100%', aspectRatio: 16/9, backgroundColor: '#0A0A0A', borderRadius: 14, borderStyle: 'dashed', borderWidth: 1.5, borderColor: '#333', justifyContent: 'center', alignItems: 'center' },
+    emptyAddCard: { width: '100%', aspectRatio: 16 / 9, backgroundColor: '#0A0A0A', borderRadius: 14, borderStyle: 'dashed', borderWidth: 1.5, borderColor: '#333', justifyContent: 'center', alignItems: 'center' },
     grid: { flexDirection: 'row', flexWrap: 'wrap', gap: 10 },
     mobileGridItem: { width: '48.5%' },
     webGridItem: { width: '23.5%' },
-    addMoreGridBtn: { width: '100%', aspectRatio: 4/3, backgroundColor: '#0A0A0A', borderRadius: 14, borderStyle: 'dashed', borderWidth: 1.5, borderColor: '#222', justifyContent: 'center', alignItems: 'center' },
+    addMoreGridBtn: { width: '100%', aspectRatio: 4 / 3, backgroundColor: '#0A0A0A', borderRadius: 14, borderStyle: 'dashed', borderWidth: 1.5, borderColor: '#222', justifyContent: 'center', alignItems: 'center' },
     addText: { color: '#666', fontSize: 12, marginTop: 8, fontWeight: '600' },
     scanLine: { position: 'absolute', left: 0, right: 0, height: 3, backgroundColor: '#C9A84C', zIndex: 10, shadowColor: "#C9A84C", shadowRadius: 10, elevation: 5 },
     progressContainer: { height: 40, backgroundColor: '#0A0A0A', borderRadius: 12, marginBottom: 20, justifyContent: 'center', overflow: 'hidden', borderWidth: 1, borderColor: '#1A1A1A' },
@@ -186,7 +207,10 @@ const styles = StyleSheet.create({
     footerContainer: { position: 'absolute', bottom: 30, left: 20, right: 20, flexDirection: 'row', gap: 12 },
     actionBtn: { flex: 1, height: 55, borderRadius: 18, flexDirection: 'row', justifyContent: 'center', alignItems: 'center' },
     enhanceBtn: { backgroundColor: '#C9A84C' },
+    enhanceBtnDisabled: { backgroundColor: '#2a2a2a' },  // ✅ Disabled state
     removeBgBtn: { backgroundColor: '#111', borderWidth: 1, borderColor: '#C9A84C' },
+    btnDisabled: { borderColor: '#333', opacity: 0.5 },  // ✅ Disabled state
     enhanceBtnText: { color: '#000', fontWeight: '900', fontSize: 13 },
     removeBgBtnText: { color: '#C9A84C', fontWeight: '900', fontSize: 13 },
+    btnTextDisabled: { color: '#555' },  // ✅ Disabled text color
 });
