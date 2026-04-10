@@ -34,6 +34,80 @@ const statusConfig: Record<ImageStatus, { label: string; variant: 'neutral' | 'g
     error: { label: 'Failed', variant: 'error' },
 };
 
+// ✅ FIX 1: Checkerboard background component — transparent PNG ke liye
+// Jab BG remove hoti hai, image ke peeche yeh pattern dikhta hai
+// taake user confirm kar sake ke background sach mein transparent hai
+const CheckerboardBackground: React.FC = () => (
+    <View style={StyleSheet.absoluteFill}>
+        <View style={styles.checkerRow}>
+            {Array.from({ length: 20 }).map((_, i) => (
+                <View
+                    key={i}
+                    style={[
+                        styles.checkerCell,
+                        { backgroundColor: i % 2 === 0 ? '#CCCCCC' : '#999999' },
+                    ]}
+                />
+            ))}
+        </View>
+        <View style={styles.checkerRow}>
+            {Array.from({ length: 20 }).map((_, i) => (
+                <View
+                    key={i}
+                    style={[
+                        styles.checkerCell,
+                        { backgroundColor: i % 2 !== 0 ? '#CCCCCC' : '#999999' },
+                    ]}
+                />
+            ))}
+        </View>
+        <View style={styles.checkerRow}>
+            {Array.from({ length: 20 }).map((_, i) => (
+                <View
+                    key={i}
+                    style={[
+                        styles.checkerCell,
+                        { backgroundColor: i % 2 === 0 ? '#CCCCCC' : '#999999' },
+                    ]}
+                />
+            ))}
+        </View>
+        <View style={styles.checkerRow}>
+            {Array.from({ length: 20 }).map((_, i) => (
+                <View
+                    key={i}
+                    style={[
+                        styles.checkerCell,
+                        { backgroundColor: i % 2 !== 0 ? '#CCCCCC' : '#999999' },
+                    ]}
+                />
+            ))}
+        </View>
+        <View style={styles.checkerRow}>
+            {Array.from({ length: 20 }).map((_, i) => (
+                <View
+                    key={i}
+                    style={[
+                        styles.checkerCell,
+                        { backgroundColor: i % 2 === 0 ? '#CCCCCC' : '#999999' },
+                    ]}
+                />
+            ))}
+        </View>
+        <View style={styles.checkerRow}>
+            {Array.from({ length: 20 }).map((_, i) => (
+                <View
+                    key={i}
+                    style={[
+                        styles.checkerCell,
+                        { backgroundColor: i % 2 !== 0 ? '#CCCCCC' : '#999999' },
+                    ]}
+                />
+            ))}
+        </View>
+    </View>
+);
+
 export const ImageCard: React.FC<ImageCardProps> = ({
     image,
     isSelected,
@@ -69,11 +143,18 @@ export const ImageCard: React.FC<ImageCardProps> = ({
                     }
                 ]}
             >
-                <View style={styles.imageContainer}>
+                {/* ✅ FIX 1: isDone ho to checkerboard dikhao, warna dark background */}
+                <View style={[
+                    styles.imageContainer,
+                    { backgroundColor: isDone ? 'transparent' : '#050505' }
+                ]}>
+                    {/* Checkerboard sirf tab dikhega jab image done ho (transparent PNG) */}
+                    {isDone && <CheckerboardBackground />}
+
                     <Image
                         source={{ uri: image.resultUri || image.uri }}
                         style={StyleSheet.absoluteFill}
-                        resizeMode="cover"
+                        resizeMode="contain"  // ✅ 'cover' ki jagah 'contain' — transparent edges clip na hon
                     />
 
                     {/* Processing Overlay */}
@@ -88,11 +169,11 @@ export const ImageCard: React.FC<ImageCardProps> = ({
 
                     {/* Remove Button - Only if not processing */}
                     {!isProcessing && (
-                        <TouchableOpacity 
+                        <TouchableOpacity
                             onPress={(e) => {
-                                e.stopPropagation(); // Card selection trigger na ho
+                                e.stopPropagation();
                                 onRemove();
-                            }} 
+                            }}
                             style={styles.removeBtn}
                             hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
                         >
@@ -104,9 +185,9 @@ export const ImageCard: React.FC<ImageCardProps> = ({
                 {/* Footer Section */}
                 <View style={styles.footer}>
                     <Badge label={status.label} variant={status.variant} size="sm" />
-                    
+
                     {isDone && (
-                        <TouchableOpacity 
+                        <TouchableOpacity
                             onPress={onDownload}
                             style={styles.downloadBtn}
                         >
@@ -141,8 +222,16 @@ const styles = StyleSheet.create({
     },
     imageContainer: {
         width: '100%',
-        aspectRatio: 4 / 3, // Cars ke liye 4:3 better lagta hai grid mein
-        backgroundColor: '#050505',
+        aspectRatio: 4 / 3,
+        // backgroundColor dynamically set hota hai upar
+    },
+    // ✅ Checkerboard styles
+    checkerRow: {
+        flex: 1,
+        flexDirection: 'row',
+    },
+    checkerCell: {
+        flex: 1,
     },
     overlay: {
         ...StyleSheet.absoluteFillObject,
