@@ -8,6 +8,9 @@ export interface ProcessOptions {
     bg_color?: string;
 }
 
+/**
+ * Helper: Build FormData correctly for the Backend
+ */
 async function buildFormData(imageUri: string, fileName: string, opts: ProcessOptions): Promise<{ form: FormData; endpoint: string }> {
     const form = new FormData();
     const action = (opts.bgUrl || opts.bg_color) ? 'replace' : 'remove';
@@ -15,19 +18,24 @@ async function buildFormData(imageUri: string, fileName: string, opts: ProcessOp
     
     let endpoint = "/process"; 
 
+    // Car Image handle (Blob for Web, File object for Native)
     const carImageData = Platform.OS === 'web' 
         ? await (await fetch(imageUri)).blob() 
         : { uri: imageUri, name: fileName || 'car_photo.jpg', type: 'image/jpeg' } as any;
     
     form.append('image', carImageData);
 
+    // Background logic
     if (opts.bgUrl) {
         if (opts.bgUrl.startsWith('http')) {
             form.append('bg_url', opts.bgUrl);
+            endpoint = "/process"; 
         } else {
+            // Local Background logic
             const bgData = Platform.OS === 'web'
                 ? await (await fetch(opts.bgUrl)).blob()
                 : { uri: opts.bgUrl, name: 'background.jpg', type: 'image/jpeg' } as any;
+            
             form.append('background', bgData);
             form.append('car_size', '0.65'); 
             form.append('smart_placement', 'true');
@@ -37,10 +45,12 @@ async function buildFormData(imageUri: string, fileName: string, opts: ProcessOp
     return { form, endpoint };
 }
 
+/**
+ * Main AI function
+ */
 export async function processSingleImage(imageUri: string, fileName: string, opts: ProcessOptions = {}): Promise<string> {
     const { form, endpoint } = await buildFormData(imageUri, fileName, opts);
 
-    // FIX: Manual AbortController (Signal.timeout fix)
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), 120000); 
 
@@ -59,21 +69,24 @@ export async function processSingleImage(imageUri: string, fileName: string, opt
         }
 
         const blob = await res.blob();
-        if (blob.size === 0) throw new Error("Empty response from AI");
+        if (blob.size === 0) throw new Error("Backend ne khali image bheji hai.");
 
         if (Platform.OS === 'web') {
             return URL.createObjectURL(blob);
         } else {
             const timestamp = Date.now();
             const localPath = `${FileSystem.cacheDirectory}processed_${timestamp}.png`;
+            
             const reader = new FileReader();
             return new Promise((resolve, reject) => {
                 reader.onloadend = async () => {
                     const base64 = (reader.result as string).split(',')[1];
-                    await FileSystem.writeAsStringAsync(localPath, base64, { encoding: FileSystem.EncodingType.Base64 });
+                    await FileSystem.writeAsStringAsync(localPath, base64, { 
+                        encoding: FileSystem.EncodingType.Base64 
+                    });
                     resolve(localPath);
                 };
-                reader.onerror = reject;
+                reader.onerror = () => reject(new Error("Image blob read error."));
                 reader.readAsDataURL(blob);
             });
         }
@@ -82,3 +95,6 @@ export async function processSingleImage(imageUri: string, fileName: string, opt
         throw error;
     }
 }
+
+// Named export ke saath default export bhi de raha hoon safe side ke liye
+export default processSingleImage;
