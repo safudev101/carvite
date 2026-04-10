@@ -6,42 +6,126 @@ import { processSingleImage } from '@/services/aiProcessing';
 export const useImageProcessor = () => {
     const { addImageToGallery } = useGalleryStore();
 
-    const processSingleImageAction = async (imageId: string, isBgRemoval: boolean) => {
-        // State update using current store names
-        const { 
-            images, 
-            setImageStatus, 
-            setProcessing, 
-            setProgress, 
-            selectedBackground 
-        } = useStudioStore.getState();
+const processSingleImageAction = async (imageId: string, isBgRemoval: boolean) => {
+    console.log("🚀 processing single image:", imageId);
 
-        const targetImage = images.find(img => img.id === imageId);
-        if (!targetImage || targetImage.status === 'processing') return;
+    // ✅ SAFE STORE ACCESS
+    const store = useStudioStore.getState();
 
-        setProcessing(true);
-        setProgress(5); 
-        setImageStatus(imageId, 'processing');
+    const images = store.images;
+    const setImageStatus = store.setImageStatus;
+    const setProcessing = store.setProcessing;
+    const setProgress = store.setProgress;
+    const selectedBackground = store.selectedBackground;
 
-        let progressInterval: any;
+    // ✅ SAFETY CHECK (IMPORTANT)
+    if (
+        typeof setProcessing !== "function" ||
+        typeof setImageStatus !== "function" ||
+        typeof setProgress !== "function"
+    ) {
+        console.error("❌ Store functions missing!", {
+            setProcessing,
+            setImageStatus,
+            setProgress,
+        });
+        return;
+    }
 
-        try {
-            const opts = {
-                bgUrl: isBgRemoval ? undefined : (selectedBackground?.fullUrl || selectedBackground?.thumbnailUrl),
-            };
+    console.log("🧠 Store check:", {
+        setProcessing: typeof setProcessing,
+        setImageStatus: typeof setImageStatus,
+        setProgress: typeof setProgress,
+    });
 
-            // Fake progress animation
-            let p = 5;
-            progressInterval = setInterval(() => {
-                p += Math.random() * 10;
-                if (p > 90) p = 90;
-                setProgress(Math.floor(p));
-            }, 1000);
+    const targetImage = images.find(img => img.id === imageId);
 
+    if (!targetImage) {
+        console.error("❌ Image not found");
+        return;
+    }
+
+    if (targetImage.status === 'processing') return;
+
+    const imageUri = targetImage.uri;
+
+    if (!imageUri) {
+        console.error("❌ imageUri missing");
+        return;
+    }
+
+    console.log("📸 URI:", imageUri);
+
+    // ✅ START PROCESSING
+    setProcessing(true);
+    setProgress(5);
+    setImageStatus(imageId, 'processing');
+
+    let progressInterval: any;
+
+    try {
+        const opts = {
+            bgUrl: isBgRemoval
+                ? undefined
+                : (selectedBackground?.fullUrl || selectedBackground?.thumbnailUrl),
+        };
+
+        // 🔥 FAKE PROGRESS (optional but safe)
+        progressInterval = setInterval(() => {
+            useStudioStore.setState(state => ({
+                processingProgress: Math.min(state.processingProgress + 5, 90)
+            }));
+        }, 
+                                       
+            // ✅ FETCH IMAGE (WEB SAFE)
+        let fileData;
+
+        if (Platform.OS === 'web') {
+            const response = await fetch(imageUri);
+            fileData = await response.blob();
+        } else {
+            fileData = imageUri;
+        }
             // 🚀 Call the function (Checking if it's actually a function first)
             if (typeof processSingleImage !== 'function') {
                 throw new Error("Critical: processSingleImage is not a function. Check imports.");
             }
+
+             // ✅ API CALL (FIXED ENDPOINT)
+            const res = await fetch("https://huggingface.co/spaces/Khan19970/carvite/process", {
+            method: "POST",
+            body: formData,
+        });
+
+            const data = await res.json();
+
+        if (!res.ok) {
+            throw new Error(data?.error || "Processing failed");
+        }
+
+        // ✅ SUCCESS
+        clearInterval(progressInterval);
+        setProgress(100);
+
+            useStudioStore.setState(state => ({
+            images: state.images.map(img =>
+                img.id === imageId
+                    ? { ...img, status: "done", resultUri: data.imageUrl }
+                    : img
+            )
+        }));
+
+    }     catch (err) {
+          console.error("❌ Processing error:", err);
+
+          clearInterval(progressInterval);
+
+         setImageStatus(imageId, "error");
+    } finally {
+        setProcessing(false);
+    }
+};
+            
 
             const resultUri = await processSingleImage(targetImage.uri, targetImage.name, opts);
 
