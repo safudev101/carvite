@@ -3,7 +3,8 @@ import { useGalleryStore } from '@/stores/galleryStore';
 import { processSingleImage } from '@/services/aiProcessing';
 
 export const useImageProcessor = () => {
-    const { addImageToGallery } = useGalleryStore();
+    // ✅ FIXED: Aapke store mein function ka naam 'addImage' hai
+    const { addImage } = useGalleryStore();
 
     /**
      * Single Image Process Action
@@ -11,7 +12,6 @@ export const useImageProcessor = () => {
     const processSingleImageAction = async (imageId: string, isBgRemoval: boolean) => {
         console.log("🚀 Processing single image:", imageId);
 
-        // 1. Get Store State
         const store = useStudioStore.getState();
         const { 
             images, 
@@ -21,7 +21,6 @@ export const useImageProcessor = () => {
             selectedBackground 
         } = store;
 
-        // 2. Safety Check for Store Functions
         if (typeof setProcessing !== "function" || typeof setImageStatus !== "function") {
             console.error("❌ Store functions missing!");
             return;
@@ -30,7 +29,6 @@ export const useImageProcessor = () => {
         const targetImage = images.find(img => img.id === imageId);
         if (!targetImage || targetImage.status === 'processing') return;
 
-        // 3. Start Processing UI
         setProcessing(true);
         setProgress(5);
         setImageStatus(imageId, 'processing');
@@ -44,7 +42,6 @@ export const useImageProcessor = () => {
                     : (selectedBackground?.fullUrl || selectedBackground?.thumbnailUrl),
             };
 
-            // 4. Fake Progress Animation
             progressInterval = setInterval(() => {
                 const currentProgress = useStudioStore.getState().processingProgress;
                 if (currentProgress < 90) {
@@ -52,26 +49,23 @@ export const useImageProcessor = () => {
                 }
             }, 1000);
 
-            // 5. API Call via Service
-            // Note: service/aiProcessing.ts ke andar CONFIG.API_BASE_URL ke sath 
-            // endpoint (/process ya /replace-bg) automatic handle ho raha hai.
             if (typeof processSingleImage !== 'function') {
                 throw new Error("Critical: processSingleImage service not found.");
             }
 
             const resultUri = await processSingleImage(targetImage.uri, targetImage.name || 'car.jpg', opts);
 
-            // 6. Success Logic
             if (progressInterval) clearInterval(progressInterval);
             
             setProgress(100);
             setImageStatus(imageId, 'done', resultUri);
 
-            // 7. Add to Gallery
-            addImageToGallery({
+            // ✅ FIXED: 'addImageToGallery' ki jagah 'addImage' use kiya hai
+            addImage({
                 id: `gal_${Date.now()}`,
                 uri: resultUri,
-                originalUri: targetImage.uri,
+                // originalUri aapke GalleryImage interface mein nahi tha, 
+                // agar zaroorat ho toh interface update kar lena
                 type: isBgRemoval ? 'transparent' : 'enhanced',
                 createdAt: new Date().toISOString()
             });
@@ -81,7 +75,6 @@ export const useImageProcessor = () => {
             setImageStatus(imageId, 'error', undefined, error.message);
             console.error("[Processor] Error:", error.message);
         } finally {
-            // Reset loader after a delay
             setTimeout(() => {
                 setProcessing(false);
                 setProgress(0);
@@ -89,9 +82,6 @@ export const useImageProcessor = () => {
         }
     };
 
-    /**
-     * Process All Pending Images
-     */
     const processAllImages = async (isBgRemoval: boolean = false) => {
         const { images } = useStudioStore.getState();
         const pendingImages = images.filter(img => img.status === 'idle' || img.status === 'error');
