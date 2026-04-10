@@ -69,23 +69,29 @@ async def process_car_image(
         
         output_path = output_dir / f"out_{file_id}.png"
 
-        if action == "remove" and not bg_url and not bg_color:
-            processed_img.save(output_path, "PNG")
+        ✅ FIXED LOGIC: Strict check for remove action
+        # Hum ensure kar rahe hain ke agar action 'remove' hai, toh baqi cheezein ignore hon
+        is_only_remove = action == "remove" and (not bg_url or bg_url == "") and (not bg_color or bg_color == "")
+
+        if is_only_remove:
+            # Sirf transparent PNG save karein
+            processed_img.save(output_path, "PNG", optimize=True)
         else:
             final_img = processed_img
-            if bg_url:
+            # Check karein ke bg_url sach mein valid hai ya nahi
+            if bg_url and str(bg_url).startswith("http"):
                 bg_res = http_requests.get(bg_url, timeout=10)
                 bg_img = Image.open(io.BytesIO(bg_res.content)).convert("RGBA")
                 bg_img = bg_img.resize(processed_img.size, Image.LANCZOS)
                 final_img = Image.alpha_composite(bg_img, processed_img)
-            elif bg_color:
+            # Check karein ke bg_color sach mein valid hai ya nahi
+            elif bg_color and bg_color != "undefined" and bg_color != "null":
                 bg_img = Image.new("RGBA", processed_img.size, bg_color)
                 final_img = Image.alpha_composite(bg_img, processed_img)
             
-            final_img.save(output_path, "PNG")
+            final_img.save(output_path, "PNG", optimize=True)
 
         return FileResponse(str(output_path), media_type="image/png")
-
     except Exception as e:
         print(f"AI Error: {str(e)}")
         raise HTTPException(status_code=500, detail=f"Processing failed: {str(e)}")
