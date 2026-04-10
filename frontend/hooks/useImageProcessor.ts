@@ -5,66 +5,48 @@ import { processSingleImage } from '@/services/aiProcessing';
 export const useImageProcessor = () => {
     const { addImageToGallery } = useGalleryStore();
 
-    /**
-     * EK SINGLE IMAGE KO PROCESS KARNE KA LOGIC
-     * @param imageId - Jis image ko process karna hai
-     * @param isBgRemoval - Agar true hai toh transparent PNG banayega, warna background replace karega
-     */
     const processSingleImageAction = async (imageId: string, isBgRemoval: boolean) => {
+        // Store functions updated to match studioStore.ts
         const { 
             images, 
-            updateImageStatus, 
-            updateImageResult, 
-            setIsProcessing, 
-            setProcessingProgress, 
+            setImageStatus,  // updateImageStatus -> setImageStatus
+            setProcessing,   // setIsProcessing -> setProcessing
+            setProgress,      // setProcessingProgress -> setProgress
             selectedBackground 
         } = useStudioStore.getState();
 
         const targetImage = images.find(img => img.id === imageId);
-        
-        // Agar image na milay ya pehle se process ho rahi ho toh ruk jao
         if (!targetImage || targetImage.status === 'processing') return;
 
-        setIsProcessing(true);
-        setProcessingProgress(5); // Initial kick
-        updateImageStatus(imageId, 'processing');
+        setProcessing(true);
+        setProgress(5); 
+        setImageStatus(imageId, 'processing');
 
-        let progressInterval: NodeJS.Timeout;
+        let progressInterval: any;
 
         try {
-            // Options set karein backend ke liye
             const opts = {
-                // Agar "Remove BG" dabaya hai toh background ki details nahi bhejni
-                bgUrl: isBgRemoval ? undefined : selectedBackground?.url,
-                bg_color: isBgRemoval ? undefined : selectedBackground?.color,
-                // Transparent result ke liye PNG format lazmi hai
-                outputFormat: isBgRemoval ? "PNG" : "JPG" as any
+                bgUrl: isBgRemoval ? undefined : selectedBackground?.fullUrl, // Use fullUrl
+                bg_color: undefined
             };
 
-            // 🌟 Smooth Progress Bar Logic (90% tak khud jaye gi)
-            let currentProgress = 10;
+            // Fake progress animation
+            let p = 5;
             progressInterval = setInterval(() => {
-                if (currentProgress < 90) {
-                    currentProgress += Math.random() * 5;
-                    setProcessingProgress(Math.min(Math.floor(currentProgress), 90));
-                }
+                p += Math.random() * 15;
+                if (p > 90) p = 90;
+                setProgress(Math.floor(p));
             }, 800);
 
-            // API Call - Backend ko image bhejna
-            const resultUri = await processSingleImage(targetImage.uri, targetImage.fileName, opts);
+            const resultUri = await processSingleImage(targetImage.uri, targetImage.name, opts);
+
+            if (progressInterval) clearInterval(progressInterval);
             
-            // Interval khatam karo aur progress 100 kardo
-            clearInterval(progressInterval);
-            setProcessingProgress(100);
+            setProgress(100);
+            setImageStatus(imageId, 'done', resultUri); // store function takes resultUri as 3rd param
 
-            // Result update karo UI mein
-            updateImageResult(imageId, resultUri);
-            updateImageStatus(imageId, 'done');
-
-            // 🌟 GALLERY INTEGRATION
-            // Image tayyar hotay hi usay gallery store mein daal do
             addImageToGallery({
-                id: `gal_${Date.now()}_${Math.random().toString(36).substr(2, 5)}`,
+                id: `gal_${Date.now()}`,
                 uri: resultUri,
                 originalUri: targetImage.uri,
                 type: isBgRemoval ? 'transparent' : 'enhanced',
@@ -72,32 +54,24 @@ export const useImageProcessor = () => {
             });
 
         } catch (error: any) {
-            if (progressInterval!) clearInterval(progressInterval);
-            updateImageStatus(imageId, 'error');
-            console.error("[Processor] Error processing image:", error.message);
+            if (progressInterval) clearInterval(progressInterval);
+            setImageStatus(imageId, 'error', undefined, error.message);
+            console.error("[Processor] Error:", error.message);
         } finally {
-            // Thora ruk kar progress bar aur loader reset karo
             setTimeout(() => {
-                setIsProcessing(false);
-                setProcessingProgress(0);
+                setProcessing(false);
+                setProgress(0);
             }, 1000);
         }
     };
 
-    /**
-     * BATCH PROCESSING (Agar saari images ek sath karni hon)
-     */
     const processAllImages = async (isBgRemoval: boolean = false) => {
         const { images } = useStudioStore.getState();
         const pendingImages = images.filter(img => img.status === 'idle' || img.status === 'error');
-
         for (const img of pendingImages) {
             await processSingleImageAction(img.id, isBgRemoval);
         }
     };
 
-    return { 
-        processSingleImageAction, 
-        processAllImages 
-    };
+    return { processSingleImageAction, processAllImages };
 };
