@@ -8,31 +8,32 @@ export interface ProcessOptions {
     bg_color?: string;
 }
 
+/**
+ * Helper: Build FormData and determine correct endpoint
+ */
 async function buildFormData(imageUri: string, fileName: string, opts: ProcessOptions): Promise<{ form: FormData; endpoint: string }> {
     const form = new FormData();
     
-    // 1. Action Decide Karein: Agar background ka data hai toh 'replace', warna 'remove'
+    // Action decide karein: Agar background hai toh replace, warna remove
     const action = (opts.bgUrl || opts.bg_color) ? 'replace' : 'remove';
     form.append('action', action);
     
-    // 2. Default Endpoint
     let endpoint = "/process"; 
 
-    // 3. Main Car Image Handle Karein
+    // Main Car Image Handle
     const carImageData = Platform.OS === 'web' 
         ? await (await fetch(imageUri)).blob() 
         : { uri: imageUri, name: fileName || 'car_photo.jpg', type: 'image/jpeg' } as any;
     
     form.append('image', carImageData);
 
-    // 4. Background Logic
+    // Background Logic
     if (opts.bgUrl) {
         if (opts.bgUrl.startsWith('http')) {
-            // Predefined background URL
             form.append('bg_url', opts.bgUrl);
             endpoint = "/process"; 
         } else {
-            // Custom Background Upload (Local Image)
+            // Custom Local Background Upload
             const bgData = Platform.OS === 'web'
                 ? await (await fetch(opts.bgUrl)).blob()
                 : { uri: opts.bgUrl, name: 'background.jpg', type: 'image/jpeg' } as any;
@@ -40,16 +41,19 @@ async function buildFormData(imageUri: string, fileName: string, opts: ProcessOp
             form.append('background', bgData);
             form.append('car_size', '0.65'); 
             form.append('smart_placement', 'true');
-            endpoint = "/replace-background"; // Alag endpoint for dual file upload
+            endpoint = "/replace-background"; 
         }
     } else if (opts.bg_color) {
-        // Solid Color Background
         form.append('bg_color', opts.bg_color);
         endpoint = "/process";
     }
 
     return { form, endpoint };
 }
+
+/**
+ * Main Process Function
+ */
 export async function processSingleImage(
     imageUri: string,
     fileName: string,
@@ -57,9 +61,10 @@ export async function processSingleImage(
 ): Promise<string> {
     const { form, endpoint } = await buildFormData(imageUri, fileName, opts);
 
-    // 🔥 FIX: AbortSignal.timeout ki jagah purana reliable tareeqa
+    // FIX: Manual timeout to prevent "S is not a function"
     const controller = new AbortController();
-    const id = setTimeout(() => controller.abort(), 120000); // 2 minute timeout
+    const timeoutId = setTimeout(() => controller.abort(), 120000); // 2 min
+
     try {
         const res = await fetch(`${API_BASE}${endpoint}`, {
             method: 'POST',
@@ -67,7 +72,7 @@ export async function processSingleImage(
             signal: controller.signal
         });
 
-        clearTimeout(id); // Request kamyab ho gayi toh timer khatam
+        clearTimeout(timeoutId);
 
         if (!res.ok) {
             const errorText = await res.text();
@@ -75,18 +80,23 @@ export async function processSingleImage(
         }
 
         const blob = await res.blob();
-        if (Platform.OS === 'web') return URL.createObjectURL(blob);
+        if (blob.size === 0) throw new Error("Backend returned empty image");
 
-        const timestamp = Date.now();
-        const localPath = `${FileSystem.cacheDirectory}processed_${timestamp}.png`;
-        const base64 = await blobToBase64(blob);
-        await FileSystem.writeAsStringAsync(localPath, base64, { encoding: FileSystem.EncodingType.Base64 });
-        return localPath;
-
+        if (Platform.OS === 'web') {
+            return URL.createObjectURL(blob);
+        } else {
+            const timestamp = Date.now();
+            const localPath = `${FileSystem.cacheDirectory}processed_${timestamp}.png`;
+            const base64 = await blobToBase64(blob);
+            await FileSystem.writeAsStringAsync(localPath, base64, {
+                encoding: FileSystem.EncodingType.Base64
+            });
+            return localPath;
+        }
     } catch (error: any) {
-        clearTimeout(id);
+        clearTimeout(timeoutId);
         if (error.name === 'AbortError') {
-            console.error("[AI] Timeout: Backend ne bohot dair laga di.");
+            console.error("[AI] Timeout: Request took too long.");
         } else {
             console.error("[AI] Critical Error:", error.message);
         }
@@ -97,7 +107,10 @@ export async function processSingleImage(
 function blobToBase64(blob: Blob): Promise<string> {
     return new Promise((resolve, reject) => {
         const reader = new FileReader();
-        reader.onloadend = () => resolve((reader.result as string).split(',')[1]);
+        reader.onloadend = () => {
+            const base64String = reader.result as string;
+            resolve(base64String.split(',')[1]);
+        };
         reader.onerror = reject;
         reader.readAsDataURL(blob);
     });
