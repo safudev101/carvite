@@ -15,27 +15,26 @@ export interface ProcessOptions {
 async function buildFormData(imageUri: string, fileName: string, opts: ProcessOptions): Promise<{ form: FormData; endpoint: string }> {
     const form = new FormData();
     
-    // Default values
+    // Speed optimization: Sirf zaroori model load karein
     form.append('model_name', opts.model_name || 'isnet-general-use'); 
     let endpoint = "/process"; 
 
-    // 1. Main Car Image
+    // 1. Main Car Image handling
     const carImageData = Platform.OS === 'web' 
         ? await (await fetch(imageUri)).blob() 
         : { uri: imageUri, name: fileName || 'car_photo.jpg', type: 'image/jpeg' } as any;
     
     form.append('image', carImageData);
 
-    // 2. Logic for Background Replacement
+    // 2. Logic for Background Replacement & Transparency
     if (opts.bgUrl) {
+        form.append('action', 'replace');
         if (opts.bgUrl.startsWith('http')) {
-            // ✅ Case: Pre-defined (URL based) - Uses /process
-            form.append('action', 'replace');
+            // Pre-defined (URL based)
             form.append('bg_url', opts.bgUrl);
             endpoint = "/process";
         } else {
-            // ✅ Case: Custom Background (Local Upload) - Uses /replace-background
-            // Backend expects 'background' field and specific endpoint
+            // Custom Background (Local Upload)
             const bgData = Platform.OS === 'web'
                 ? await (await fetch(opts.bgUrl)).blob()
                 : { uri: opts.bgUrl, name: 'custom_bg.jpg', type: 'image/jpeg' } as any;
@@ -43,8 +42,6 @@ async function buildFormData(imageUri: string, fileName: string, opts: ProcessOp
             form.append('background', bgData);
             form.append('car_size', '0.70'); 
             form.append('smart_placement', 'true');
-            
-            // Switch to the dedicated replacement endpoint
             endpoint = "/replace-background"; 
         }
     } else if (opts.bg_color) {
@@ -52,7 +49,10 @@ async function buildFormData(imageUri: string, fileName: string, opts: ProcessOp
         form.append('bg_color', opts.bg_color);
         endpoint = "/process";
     } else {
+        // ✅ FIXED FOR TRANSPARENCY: 
+        // Jab sirf remove karna ho, toh 'format' PNG rakhein taake background black ki jagah transparent ho.
         form.append('action', 'remove');
+        form.append('format', 'png'); 
         endpoint = "/process";
     }
 
@@ -65,8 +65,9 @@ async function buildFormData(imageUri: string, fileName: string, opts: ProcessOp
 export async function processSingleImage(imageUri: string, fileName: string, opts: ProcessOptions = {}): Promise<string> {
     const { form, endpoint } = await buildFormData(imageUri, fileName, opts);
 
+    // Timeout ko thoda optimize kiya hai fast response ke liye
     const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 120000); 
+    const timeoutId = setTimeout(() => controller.abort(), 90000); 
 
     try {
         console.log(`Sending request to: ${API_BASE}${endpoint}`);
@@ -109,7 +110,9 @@ export async function processSingleImage(imageUri: string, fileName: string, opt
         }
     } catch (error: any) {
         clearTimeout(timeoutId);
-        console.error("Processing Error:", error.message);
+        if (error.name === 'AbortError') {
+            console.error("Processing timed out for better speed control.");
+        }
         throw error;
     }
 }
