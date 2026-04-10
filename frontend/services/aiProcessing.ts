@@ -10,23 +10,29 @@ export interface ProcessOptions {
 
 async function buildFormData(imageUri: string, fileName: string, opts: ProcessOptions): Promise<{ form: FormData; endpoint: string }> {
     const form = new FormData();
-    // Agar bgUrl ya bg_color hai toh matlab 'replace' karna hai, warna sirf 'remove'
-    const actionType = (opts.bgUrl || opts.bg_color) ? "replace" : "remove";
     
-    form.append('action', actionType);
+    // 1. Action Decide Karein: Agar background ka data hai toh 'replace', warna 'remove'
+    const action = (opts.bgUrl || opts.bg_color) ? 'replace' : 'remove';
+    form.append('action', action);
     
-    let endpoint = "/upload-image"; 
+    // 2. Default Endpoint
+    let endpoint = "/process"; 
 
+    // 3. Main Car Image Handle Karein
     const carImageData = Platform.OS === 'web' 
         ? await (await fetch(imageUri)).blob() 
         : { uri: imageUri, name: fileName || 'car_photo.jpg', type: 'image/jpeg' } as any;
     
     form.append('image', carImageData);
 
+    // 4. Background Logic
     if (opts.bgUrl) {
         if (opts.bgUrl.startsWith('http')) {
+            // Predefined background URL
             form.append('bg_url', opts.bgUrl);
+            endpoint = "/process"; 
         } else {
+            // Custom Background Upload (Local Image)
             const bgData = Platform.OS === 'web'
                 ? await (await fetch(opts.bgUrl)).blob()
                 : { uri: opts.bgUrl, name: 'background.jpg', type: 'image/jpeg' } as any;
@@ -34,15 +40,16 @@ async function buildFormData(imageUri: string, fileName: string, opts: ProcessOp
             form.append('background', bgData);
             form.append('car_size', '0.65'); 
             form.append('smart_placement', 'true');
-            endpoint = "/replace-background";
+            endpoint = "/replace-background"; // Alag endpoint for dual file upload
         }
     } else if (opts.bg_color) {
+        // Solid Color Background
         form.append('bg_color', opts.bg_color);
+        endpoint = "/process";
     }
 
     return { form, endpoint };
 }
-
 export async function processSingleImage(
     imageUri: string,
     fileName: string,
@@ -50,10 +57,9 @@ export async function processSingleImage(
 ): Promise<string> {
     const { form, endpoint } = await buildFormData(imageUri, fileName, opts);
 
-    // Safer Timeout logic
+    // 🔥 FIX: AbortSignal.timeout ki jagah purana reliable tareeqa
     const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 120000);
-
+    const id = setTimeout(() => controller.abort(), 120000); // 2 minute timeout
     try {
         const res = await fetch(`${API_BASE}${endpoint}`, {
             method: 'POST',
@@ -61,7 +67,7 @@ export async function processSingleImage(
             signal: controller.signal
         });
 
-        clearTimeout(timeoutId);
+        clearTimeout(id); // Request kamyab ho gayi toh timer khatam
 
         if (!res.ok) {
             const errorText = await res.text();
@@ -78,8 +84,12 @@ export async function processSingleImage(
         return localPath;
 
     } catch (error: any) {
-        clearTimeout(timeoutId);
-        console.error("[AI] Critical Error:", error.message);
+        clearTimeout(id);
+        if (error.name === 'AbortError') {
+            console.error("[AI] Timeout: Backend ne bohot dair laga di.");
+        } else {
+            console.error("[AI] Critical Error:", error.message);
+        }
         throw error;
     }
 }
