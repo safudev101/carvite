@@ -60,7 +60,7 @@ export async function processSingleImage(imageUri: string, fileName: string, opt
     const timeoutId = setTimeout(() => controller.abort(), 120000); 
 
     try {
-        const res = await fetch(`${API_BASE}${endpoint}`/process, {
+        const res = await fetch(`${API_BASE}${endpoint}/process`, {
             method: 'POST',
             body: form,
             signal: controller.signal
