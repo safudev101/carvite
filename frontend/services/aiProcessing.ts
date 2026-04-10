@@ -1,7 +1,7 @@
 import * as FileSystem from 'expo-file-system';
 import { Platform } from 'react-native';
 
-const API_BASE = "https://khan19970-carvite.hf.space"/process;
+const API_BASE = "https://khan19970-carvite.hf.space";
 
 export interface ProcessOptions {
     bgUrl?: string;
@@ -60,7 +60,7 @@ export async function processSingleImage(imageUri: string, fileName: string, opt
     const timeoutId = setTimeout(() => controller.abort(), 120000); 
 
     try {
-        const res = await fetch(`${API_BASE}${endpoint}`, {
+        const res = await fetch(`${API_BASE}${endpoint}`/process, {
             method: 'POST',
             body: form,
             signal: controller.signal
