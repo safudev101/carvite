@@ -40,11 +40,11 @@ async function buildFormData(imageUri: string, fileName: string, opts: ProcessOp
                 ? await (await fetch(opts.bgUrl)).blob()
                 : { uri: opts.bgUrl, name: 'background.jpg', type: 'image/jpeg' } as any;
             
-            form.append('background', bgData);
-            form.append('car_size', '0.65'); 
-            form.append('smart_placement', 'true');
-            // Agar backend specific endpoint use karta hai local files ke liye
-            endpoint = "/replace-background";
+            // form.append('background', bgData);
+            // form.append('car_size', '0.65'); 
+            // form.append('smart_placement', 'true');
+            // // Agar backend specific endpoint use karta hai local files ke liye
+            let endpoint = "/process";
         }
     }
     return { form, endpoint };
