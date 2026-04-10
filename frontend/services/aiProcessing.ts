@@ -1,7 +1,7 @@
 import * as FileSystem from 'expo-file-system';
 import { Platform } from 'react-native';
 
-const API_BASE = "https://khan19970-carvite.hf.space";
+const API_BASE = process.env.EXPO_PUBLIC_AI_API_URL || "https://khan19970-carvite.hf.space";
 
 export interface ProcessOptions {
     bgUrl?: string;
