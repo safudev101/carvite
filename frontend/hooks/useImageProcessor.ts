@@ -5,48 +5,57 @@ import { processSingleImage } from '@/services/aiProcessing';
 export const useImageProcessor = () => {
     const { addImageToGallery } = useGalleryStore();
 
+    /**
+     * Single Image Process logic
+     */
     const processSingleImageAction = async (imageId: string, isBgRemoval: boolean) => {
-        // Store functions updated to match studioStore.ts
+        // StudioStore se state aur functions nikalna (Zustand)
         const { 
             images, 
-            setImageStatus,  // updateImageStatus -> setImageStatus
-            setProcessing,   // setIsProcessing -> setProcessing
-            setProgress,      // setProcessingProgress -> setProgress
+            setImageStatus, 
+            setProcessing, 
+            setProgress, 
             selectedBackground 
         } = useStudioStore.getState();
 
         const targetImage = images.find(img => img.id === imageId);
+        
         if (!targetImage || targetImage.status === 'processing') return;
 
+        // UI Updates start
         setProcessing(true);
-        setProgress(5); 
+        setProgress(10); 
         setImageStatus(imageId, 'processing');
 
         let progressInterval: any;
 
         try {
             const opts = {
-                bgUrl: isBgRemoval ? undefined : selectedBackground?.fullUrl, // Use fullUrl
-                bg_color: undefined
+                // Agar Remove BG nahi hai toh background URL bhejein
+                bgUrl: isBgRemoval ? undefined : selectedBackground?.thumbnailUrl || selectedBackground?.fullUrl,
             };
 
-            // Fake progress animation
-            let p = 5;
+            // Fake progress badhane ke liye
+            let p = 10;
             progressInterval = setInterval(() => {
-                p += Math.random() * 15;
-                if (p > 90) p = 90;
+                p += Math.random() * 8;
+                if (p > 92) p = 92;
                 setProgress(Math.floor(p));
-            }, 800);
+            }, 1000);
 
+            // Asli API Call
             const resultUri = await processSingleImage(targetImage.uri, targetImage.name, opts);
 
             if (progressInterval) clearInterval(progressInterval);
             
             setProgress(100);
-            setImageStatus(imageId, 'done', resultUri); // store function takes resultUri as 3rd param
+            
+            // Store update karein processed image ke saath
+            setImageStatus(imageId, 'done', resultUri);
 
+            // Gallery mein save karein
             addImageToGallery({
-                id: `gal_${Date.now()}`,
+                id: `gal_${Date.now()}_${Math.random().toString(36).substr(2, 5)}`,
                 uri: resultUri,
                 originalUri: targetImage.uri,
                 type: isBgRemoval ? 'transparent' : 'enhanced',
@@ -58,20 +67,31 @@ export const useImageProcessor = () => {
             setImageStatus(imageId, 'error', undefined, error.message);
             console.error("[Processor] Error:", error.message);
         } finally {
+            // Loader hatane ke liye thoda wait karein
             setTimeout(() => {
                 setProcessing(false);
                 setProgress(0);
-            }, 1000);
+            }, 1200);
         }
     };
 
+    /**
+     * Batch Processing logic
+     */
     const processAllImages = async (isBgRemoval: boolean = false) => {
         const { images } = useStudioStore.getState();
         const pendingImages = images.filter(img => img.status === 'idle' || img.status === 'error');
+
         for (const img of pendingImages) {
             await processSingleImageAction(img.id, isBgRemoval);
         }
     };
 
-    return { processSingleImageAction, processAllImages };
+    return { 
+        processSingleImageAction, 
+        processAllImages,
+        // Helper state access
+        isProcessing: useStudioStore(state => state.isProcessing),
+        processingProgress: useStudioStore(state => state.processingProgress)
+    };
 };
