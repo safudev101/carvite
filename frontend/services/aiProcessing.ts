@@ -6,6 +6,7 @@ const API_BASE = "https://khan19970-carvite.hf.space";
 export interface ProcessOptions {
     bgUrl?: string;
     bg_color?: string;
+    model_name?: string; // Added for backend compatibility
 }
 
 /**
@@ -14,11 +15,14 @@ export interface ProcessOptions {
 async function buildFormData(imageUri: string, fileName: string, opts: ProcessOptions): Promise<{ form: FormData; endpoint: string }> {
     const form = new FormData();
     const action = (opts.bgUrl || opts.bg_color) ? 'replace' : 'remove';
+    
+    // Backend expects action and model_name
     form.append('action', action);
+    form.append('model_name', opts.model_name || 'unimodel-car-v1'); // Default model name
     
     let endpoint = "/process"; 
 
-    // Car Image handle (Blob for Web, File object for Native)
+    // Car Image handle
     const carImageData = Platform.OS === 'web' 
         ? await (await fetch(imageUri)).blob() 
         : { uri: imageUri, name: fileName || 'car_photo.jpg', type: 'image/jpeg' } as any;
@@ -39,6 +43,7 @@ async function buildFormData(imageUri: string, fileName: string, opts: ProcessOp
             form.append('background', bgData);
             form.append('car_size', '0.65'); 
             form.append('smart_placement', 'true');
+            // Agar backend specific endpoint use karta hai local files ke liye
             endpoint = "/replace-background";
         }
     }
@@ -65,6 +70,8 @@ export async function processSingleImage(imageUri: string, fileName: string, opt
 
         if (!res.ok) {
             const errorText = await res.text();
+            // Logging specific backend error for debugging
+            console.error("[Backend Raw Error]:", errorText);
             throw new Error(`Backend Error (${res.status}): ${errorText}`);
         }
 
@@ -96,5 +103,4 @@ export async function processSingleImage(imageUri: string, fileName: string, opt
     }
 }
 
-// Named export ke saath default export bhi de raha hoon safe side ke liye
 export default processSingleImage;
