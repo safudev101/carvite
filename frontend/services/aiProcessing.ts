@@ -1,6 +1,7 @@
 import * as FileSystem from 'expo-file-system';
 import { Platform } from 'react-native';
 
+// ✅ FIXED: .env file se value uthayega ya fallback use karega
 const API_BASE = process.env.EXPO_PUBLIC_AI_API_URL || "https://khan19970-carvite.hf.space";
 
 export interface ProcessOptions {
@@ -14,42 +15,46 @@ export interface ProcessOptions {
  */
 async function buildFormData(imageUri: string, fileName: string, opts: ProcessOptions): Promise<{ form: FormData; endpoint: string }> {
     const form = new FormData();
-    const action = (opts.bgUrl || opts.bg_color) ? 'replace' : 'remove';
     
-    // Backend expects action and model_name
-    form.append('action', action);
+    // Default model name for car processing
     form.append('model_name', opts.model_name || 'isnet-general-use'); 
     
-    // ✅ Endpoint logic
-    // Default endpoint is "/process"
+    // Initial endpoint
     let endpoint = "/process"; 
 
-    // Car Image handle
+    // 1. Car Image Handling
     const carImageData = Platform.OS === 'web' 
         ? await (await fetch(imageUri)).blob() 
         : { uri: imageUri, name: fileName || 'car_photo.jpg', type: 'image/jpeg' } as any;
     
     form.append('image', carImageData);
 
-    // Background logic
+    // 2. Background Logic (Custom vs Pre-defined)
     if (opts.bgUrl) {
         if (opts.bgUrl.startsWith('http')) {
+            // ✅ Case: Pre-defined background (URL based)
+            form.append('action', 'replace');
             form.append('bg_url', opts.bgUrl);
-            endpoint = "/process"; 
         } else {
-            // Local Background logic (Custom Upload)
+            // ✅ Case: Custom Background (Local File/Upload)
+            form.append('action', 'replace');
+            
             const bgData = Platform.OS === 'web'
                 ? await (await fetch(opts.bgUrl)).blob()
-                : { uri: opts.bgUrl, name: 'background.jpg', type: 'image/jpeg' } as any;
+                : { uri: opts.bgUrl, name: 'custom_background.jpg', type: 'image/jpeg' } as any;
             
+            // Backend expects 'background' field for file uploads
             form.append('background', bgData);
-            form.append('car_size', '0.65'); 
-            form.append('smart_placement', 'true');
             
-            // Agar backend custom background ke liye alag route use karta hai:
-            endpoint = "/process"; // Yahan aapka default hi chalega agar backend single endpoint hai
+            // Optional parameters for better placement
+            form.append('car_size', '0.75'); 
+            form.append('smart_placement', 'true');
         }
+    } else {
+        // ✅ Case: Only Remove Background
+        form.append('action', 'remove');
     }
+
     return { form, endpoint };
 }
 
@@ -63,7 +68,6 @@ export async function processSingleImage(imageUri: string, fileName: string, opt
     const timeoutId = setTimeout(() => controller.abort(), 120000); 
 
     try {
-        // ✅ FIXED: No more double slashes or double "/process"
         const res = await fetch(`${API_BASE}${endpoint}`, {
             method: 'POST',
             body: form,
