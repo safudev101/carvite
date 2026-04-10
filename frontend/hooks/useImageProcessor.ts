@@ -78,7 +78,7 @@ const processSingleImageAction = async (imageId: string, isBgRemoval: boolean) =
         }, 
                                        
             // ✅ FETCH IMAGE (WEB SAFE)
-        let fileData;
+             fileData;
 
         if (Platform.OS === 'web') {
             const response = await fetch(imageUri);
